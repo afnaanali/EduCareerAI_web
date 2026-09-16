@@ -5,13 +5,23 @@ import pandas as pd
 import numpy as np
 import joblib
 
-# Cross-version compatibility for unpickling HistGradientBoostingClassifier
+# Cross-version compatibility for unpickling HistGradientBoostingClassifier & ColumnTransformer
 try:
     import sklearn._loss._loss as _cy_loss
     sys.modules["sklearn.ensemble._hist_gradient_boosting._loss"] = _cy_loss
     sys.modules["_loss"] = _cy_loss
 except Exception:
     pass
+
+try:
+    import sklearn.compose._column_transformer as _ct
+    if not hasattr(_ct, "_RemainderColsList"):
+        class _RemainderColsList(list):
+            pass
+        _ct._RemainderColsList = _RemainderColsList
+except Exception:
+    pass
+
 
 
 HOBBY_COLUMNS = [

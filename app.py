@@ -10,6 +10,24 @@ import plotly.express as px
 # Add unified root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Global cross-version compatibility for unpickling Scikit-Learn pipelines and models
+try:
+    import sklearn._loss._loss as _cy_loss
+    sys.modules["sklearn.ensemble._hist_gradient_boosting._loss"] = _cy_loss
+    sys.modules["_loss"] = _cy_loss
+except Exception:
+    pass
+
+try:
+    import sklearn.compose._column_transformer as _ct
+    if not hasattr(_ct, "_RemainderColsList"):
+        class _RemainderColsList(list):
+            pass
+        _ct._RemainderColsList = _RemainderColsList
+except Exception:
+    pass
+
+
 from core.career_recommender import (
     predict_top_careers,
     CAREER_FIELDS,
