@@ -63,9 +63,12 @@ from core.chatbot import (
 from core.dl_models import (
     predict_career_ann,
     predict_digit_cnn,
+    preprocess_handwritten_digit,
+    analyze_uploaded_marksheet,
     compare_rnn_and_lstm,
     analyze_interview_tone_coach,
 )
+
 
 from core.roadmap_generator import (
     get_roadmap_for_career,
@@ -1523,7 +1526,7 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
     # 2. CNN Tab — EdTech Marksheet & Exam Scanner
     with lab_tab2:
         st.markdown("### 📝 EdTech Handwritten Marksheet & Exam Scanner (Vision AI)")
-        st.caption("Architecture: Conv2D(32) → MaxPool2D → Conv2D(64) → MaxPool2D → Flatten → Dense(64) → Dense(10, Softmax)")
+        st.caption("Architecture: Conv2D(32, 3×3, ReLU) → MaxPool2D(2×2) → Conv2D(64, 3×3, ReLU) → MaxPool2D(2×2) → Flatten → Dense(64, ReLU) → Dense(10, Softmax)")
         
         st.markdown(
             """
@@ -1531,14 +1534,111 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                 <span style="font-weight:700; color:#166534; font-size:14px;">🎓 EdTech Vision Application</span>
                 <p style="margin:4px 0 0 0; font-size:13px; color:#14532D; line-height:1.5;">
                     Simulates an automated AI grading assistant that scans handwritten exam papers, numerical grade marks, and student test scores using 
-                    <b>2D Convolutional Neural Networks</b> to automatically digitize academic data for career profiling.
+                    <b>2D Convolutional Neural Networks (CNN)</b> to automatically digitize academic data for career profiling.
                 </p>
             </div>
             """,
             unsafe_allow_html=True
         )
-        
-        st.write("Select a handwritten marksheet numerical score sample to scan and classify:")
+
+        # ── Section 1: 📷 Upload Custom Handwritten Mark ─────────────────────
+        st.markdown("#### 📷 Option 1: Upload Handwritten Mark / Digit")
+        st.caption("Upload a photo or scan of handwritten numerical marks (e.g. from an exam sheet or notebook). Supported: **JPG, JPEG, PNG**.")
+
+        uploaded_digit_file = st.file_uploader(
+            "Choose a handwritten numerical mark image:",
+            type=["png", "jpg", "jpeg"],
+            key="cnn_marksheet_uploader",
+            help="Upload a clear photograph or scan containing handwritten numerical digits."
+        )
+
+        if uploaded_digit_file is not None:
+            c_up_prev, c_up_action = st.columns([1, 2])
+            with c_up_prev:
+                st.image(
+                    uploaded_digit_file,
+                    caption="🖼️ Uploaded Image",
+                    width=200
+                )
+            with c_up_action:
+                st.markdown("**Image Details:**")
+                st.caption(f"Filename: `{uploaded_digit_file.name}` • Size: `{len(uploaded_digit_file.getvalue()) / 1024:.1f} KB`")
+                analyze_upload_clicked = st.button("🔍 Analyze & Digitize Mark with CNN", key="btn_analyze_upload_digit", type="primary")
+
+            if analyze_upload_clicked:
+                with st.spinner("⚙️ Preprocessing image & running 2D CNN inference..."):
+                    img_bytes = uploaded_digit_file.getvalue()
+                    upload_res = analyze_uploaded_marksheet(img_bytes)
+
+                if not upload_res.get("success", False):
+                    st.error(f"⚠️ {upload_res.get('error', 'Could not process image.')}")
+                else:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("#### ⚙️ CNN Visual Preprocessing & Inference Pipeline")
+                    
+                    p_col1, p_col2, p_col3 = st.columns(3)
+                    with p_col1:
+                        st.image(uploaded_digit_file, caption="1. 📷 Original Upload", width=140)
+                    with p_col2:
+                        st.image(upload_res["primary_canvas"], caption="2. ⚙️ 28×28 Centered MNIST Input", width=140, clamp=True)
+                    with p_col3:
+                        status_color = "#10B981" if upload_res["status"] == "high" else ("#F59E0B" if upload_res["status"] == "moderate" else "#EF4444")
+                        status_text = "High Confidence" if upload_res["status"] == "high" else ("Moderate Confidence" if upload_res["status"] == "moderate" else "Low Confidence")
+                        st.markdown(
+                            f"""
+                            <div class="glass-panel" style="padding:14px 18px; text-align:center; height:100%;">
+                                <span style="font-size:11px; font-weight:700; color:#6366F1; text-transform:uppercase;">3. 🧠 Predicted Mark</span>
+                                <div style="font-size:32px; font-weight:800; color:#1E1B4B; line-height:1.1; margin:6px 0;">
+                                    🎯 {upload_res['predicted_mark']}
+                                </div>
+                                <span style="font-size:12px; font-weight:700; color:{status_color};">
+                                    ● {upload_res['confidence']:.2f}% ({status_text})
+                                </span>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+                    # If multi-digit, show per-digit segmentation breakdown
+                    if upload_res.get("is_multidigit", False):
+                        st.info(f"🔢 **Multi-Digit Segmentation Active:** Detected **{len(upload_res['digits'])}** distinct digits from left to right.")
+                        seg_cols = st.columns(len(upload_res["digits"]))
+                        for i, d_info in enumerate(upload_res["digits"]):
+                            with seg_cols[i]:
+                                st.image(d_info["canvas_28x28"], caption=f"Digit #{i+1}: '{d_info['digit']}' ({d_info['confidence']:.1f}%)", width=100, clamp=True)
+
+                    # Plotly Probability Bar Chart for primary/active digit
+                    primary_probs = upload_res["digits"][0]["probabilities"]
+                    prob_df_upload = pd.DataFrame({
+                        "Digit": [f"Digit {d}" for d in range(10)],
+                        "Probability": primary_probs
+                    })
+                    fig_up_cnn = px.bar(
+                        prob_df_upload,
+                        x="Digit",
+                        y="Probability",
+                        text=[f"{p:.1f}%" for p in primary_probs],
+                        labels={"Probability": "Softmax Confidence (%)", "Digit": "Class (0–9)"},
+                        color="Probability",
+                        color_continuous_scale=["#E0E7FF", "#4338CA"]
+                    )
+                    fig_up_cnn.update_layout(
+                        title=f"📊 10-Class Softmax Probability Distribution (Digit '{upload_res['digits'][0]['digit']}')",
+                        title_font_size=14,
+                        height=240,
+                        margin=dict(l=10, r=10, t=35, b=10),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        coloraxis_showscale=False
+                    )
+                    fig_up_cnn.update_traces(textposition='outside')
+                    st.plotly_chart(fig_up_cnn, use_container_width=True, config={'displayModeBar': False})
+
+        st.divider()
+
+        # ── Section 2: 🔬 Authentic MNIST Test Benchmark Samples ──────────────
+        st.markdown("#### 🔬 Option 2: Test Authentic MNIST Benchmark Samples")
+        st.caption("Select a standard verified handwriting sample from the benchmark test dataset to test baseline model accuracy.")
 
         c_pick1, c_pick2 = st.columns([1, 1])
         with c_pick1:
@@ -1578,14 +1678,14 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                 clamp=True
             )
         with c_col2:
-            if st.button("🔍 Scan & Digitize Mark with Vision CNN", key="btn_cnn_pred", type="primary"):
+            if st.button("🔍 Scan Benchmark Sample with Vision CNN", key="btn_cnn_pred", type="primary"):
                 try:
                     cnn_res = predict_digit_cnn(sample_img)
                     p_digit = cnn_res['predicted_digit']
                     p_conf = cnn_res['confidence']
                     
                     if p_digit == digit_choice:
-                        st.success(f"🎯 Mark Successfully Digitized! Detected Score: **{p_digit}** ({p_conf:.2f}% confidence)")
+                        st.success(f"🎯 Mark Successfully Digitized! Detected Score: **{p_digit}** ({p_conf:.2f}% confidence) • Matches Target Benchmark")
                     else:
                         st.warning(f"Digitized Score: **{p_digit}** ({p_conf:.2f}% confidence)")
 
@@ -1597,6 +1697,7 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                         cnn_df,
                         x="Digit",
                         y="Probability",
+                        text=[f"{p:.1f}%" for p in cnn_res["probabilities"]],
                         labels={"Probability": "Confidence (%)", "Digit": "Digit Class"},
                         color="Probability",
                         color_continuous_scale=["#DCFCE7", "#16A34A"]
@@ -1608,6 +1709,7 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                         plot_bgcolor='rgba(0,0,0,0)',
                         coloraxis_showscale=False
                     )
+                    fig_cnn.update_traces(textposition='outside')
                     st.plotly_chart(fig_cnn, use_container_width=True, config={'displayModeBar': False})
                 except Exception as e:
                     st.error(f"CNN execution error: {e}")
@@ -1625,6 +1727,7 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                    - Flattens the feature representations and computes normalized probability outputs ($0.0 - 1.0$) across all 10 numerical mark classes.
                 """
             )
+
 
 
     # 3. 🎤 AI Interview & Cover Letter Tone Coach Tab

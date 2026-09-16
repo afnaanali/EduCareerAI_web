@@ -14,9 +14,11 @@ from typing import Dict, Any, List, Tuple, Optional
 
 
 import numpy as np
+from PIL import Image
 import h5py
 import torch
 import torch.nn.functional as F
+
 
 ANN_SKILLS = [
     "Python",
@@ -187,6 +189,270 @@ def predict_digit_cnn(image_28x28: np.ndarray, model_dir: str = None) -> dict:
         "confidence": confidence,
         "probabilities": [float(p * 100) for p in probs]
     }
+
+
+def preprocess_handwritten_digit(
+    image_input,
+    target_size: int = 28,
+    digit_box_size: int = 20
+) -> Tuple[np.ndarray, dict]:
+    """
+    Robustly preprocesses an arbitrary uploaded image into MNIST format (28x28 normalized float32 array).
+    Pipeline:
+    1. Loads image & converts to grayscale.
+    2. Automatically detects background brightness from image borders.
+    3. Inverts if black-on-white (paper photo) or retains if white-on-black (MNIST style).
+    4. Suppresses background noise and extracts active foreground bounding box.
+    5. Scales the digit preserving aspect ratio to fit within digit_box_size (20x20).
+    6. Centers the digit on a 28x28 black canvas.
+    7. Normalizes pixel values to [0.0, 1.0].
+    """
+    if isinstance(image_input, bytes):
+        pil_img = Image.open(io.BytesIO(image_input)).convert("L")
+    elif isinstance(image_input, Image.Image):
+        pil_img = image_input.convert("L")
+    elif isinstance(image_input, np.ndarray):
+        if image_input.ndim == 3 and image_input.shape[2] in (3, 4):
+            pil_img = Image.fromarray(image_input).convert("L")
+        else:
+            pil_img = Image.fromarray(image_input.astype(np.uint8)).convert("L")
+    else:
+        raise ValueError("Unsupported image input type. Please provide file bytes, PIL Image, or NumPy array.")
+
+    # Guard against excessively large images by downscaling first for speed
+    if max(pil_img.size) > 1024:
+        pil_img.thumbnail((1024, 1024), Image.Resampling.BILINEAR)
+
+    gray = np.array(pil_img, dtype=np.float32)
+    h, w = gray.shape
+
+    if h < 5 or w < 5:
+        raise ValueError("Image dimensions are too small to detect handwriting.")
+
+    # 1. Estimate background level from outer 10% perimeter
+    margin_h = max(1, h // 10)
+    margin_w = max(1, w // 10)
+    border_pixels = np.concatenate([
+        gray[:margin_h, :].flatten(),
+        gray[-margin_h:, :].flatten(),
+        gray[:, :margin_w].flatten(),
+        gray[:, -margin_w:].flatten(),
+    ])
+    bg_level = float(np.median(border_pixels))
+    is_inverted = False
+
+    # 2. Convert to white digit on black background
+    if bg_level > 127.0:
+        # Dark ink on bright paper -> Invert
+        processed = bg_level - gray
+        is_inverted = True
+    else:
+        # Bright ink on dark paper (MNIST style) -> Subtract background
+        processed = gray - bg_level
+
+    processed = np.clip(processed, 0.0, 255.0)
+
+    # 3. Dynamic contrast scaling & thresholding
+    p_max = float(np.max(processed))
+    if p_max < 15.0:
+        raise ValueError("No clear handwritten stroke was detected. The image appears blank or low-contrast.")
+
+    # Foreground threshold: at least 18% of max intensity
+    threshold = max(18.0, p_max * 0.18)
+    active_y, active_x = np.where(processed > threshold)
+
+    if len(active_y) == 0:
+        raise ValueError("No active handwritten digit pixels found after noise filtering.")
+
+    min_y, max_y = int(active_y.min()), int(active_y.max())
+    min_x, max_x = int(active_x.min()), int(active_x.max())
+
+    crop = processed[min_y:max_y + 1, min_x:max_x + 1]
+    ch, cw = crop.shape
+
+    # 4. Aspect-ratio preserving scale into 20x20 bounding box
+    scale = float(digit_box_size) / max(ch, cw)
+    new_h = max(1, min(digit_box_size, int(round(ch * scale))))
+    new_w = max(1, min(digit_box_size, int(round(cw * scale))))
+
+    # Normalize contrast of the crop to 0-255 before resizing for sharp edges
+    crop_norm = np.clip(crop * (255.0 / p_max), 0.0, 255.0).astype(np.uint8)
+    crop_pil = Image.fromarray(crop_norm)
+    resized_pil = crop_pil.resize((new_w, new_h), Image.Resampling.BILINEAR)
+    resized_arr = np.array(resized_pil, dtype=np.float32) / 255.0
+
+    # 5. Center onto target 28x28 black canvas
+    canvas = np.zeros((target_size, target_size), dtype=np.float32)
+    off_y = (target_size - new_h) // 2
+    off_x = (target_size - new_w) // 2
+    canvas[off_y:off_y + new_h, off_x:off_x + new_w] = resized_arr
+
+    meta = {
+        "is_inverted": is_inverted,
+        "original_size": (w, h),
+        "crop_bbox": (min_x, min_y, max_x, max_y),
+        "digit_shape": (new_w, new_h),
+    }
+    return canvas, meta
+
+
+def analyze_uploaded_marksheet(
+    image_input,
+    model_dir: str = None
+) -> dict:
+    """
+    End-to-end analysis for uploaded handwritten numerical marks:
+    - Preprocesses uploaded image (handles paper photos & MNIST style).
+    - Checks for multi-digit segmentation (e.g. 78, 25, 100).
+    - Runs 2D CNN inference on each segmented digit.
+    - Returns prediction, confidence, probability breakdown, and 28x28 previews.
+    """
+    try:
+        if isinstance(image_input, bytes):
+            pil_orig = Image.open(io.BytesIO(image_input))
+        elif isinstance(image_input, Image.Image):
+            pil_orig = image_input
+        else:
+            pil_orig = Image.fromarray(image_input)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Invalid or unreadable image file: {e}"
+        }
+
+    # First attempt multi-digit segmentation
+    try:
+        gray = np.array(pil_orig.convert("L"), dtype=np.float32)
+        h, w = gray.shape
+        margin_h = max(1, h // 10)
+        margin_w = max(1, w // 10)
+        border_pixels = np.concatenate([
+            gray[:margin_h, :].flatten(),
+            gray[-margin_h:, :].flatten(),
+            gray[:, :margin_w].flatten(),
+            gray[:, -margin_w:].flatten(),
+        ])
+        bg_median = float(np.median(border_pixels))
+        if bg_median > 127.0:
+            processed = bg_median - gray
+        else:
+            processed = gray - bg_median
+        processed = np.clip(processed, 0.0, 255.0)
+        p_max = float(np.max(processed))
+
+        if p_max < 15.0:
+            return {
+                "success": False,
+                "error": "No clear handwritten numerical marks were detected. The image appears blank or low-contrast."
+            }
+
+        threshold = max(18.0, p_max * 0.18)
+        binary = (processed > threshold).astype(np.uint8)
+
+        # Vertical projection profile (sum columns)
+        v_proj = binary.sum(axis=0)
+        in_digit = False
+        start_x = 0
+        raw_segments = []
+        for x, val in enumerate(v_proj):
+            if val > 0 and not in_digit:
+                in_digit = True
+                start_x = x
+            elif val == 0 and in_digit:
+                in_digit = False
+                if (x - start_x) >= 4:
+                    raw_segments.append((start_x, x))
+        if in_digit and (w - start_x) >= 4:
+            raw_segments.append((start_x, w))
+
+        # Filter segments with sufficient active area
+        valid_segments = []
+        for (sx, ex) in raw_segments:
+            sub = processed[:, sx:ex]
+            sub_active = np.where(sub > threshold)
+            if len(sub_active[0]) >= 15:
+                valid_segments.append((sx, ex))
+
+        # Multi-digit processing if multiple distinct segments detected
+        if len(valid_segments) > 1 and len(valid_segments) <= 4:
+            digits_result = []
+            combined_mark_str = ""
+            total_conf = 0.0
+
+            for idx, (sx, ex) in enumerate(valid_segments):
+                sub_img = processed[:, sx:ex]
+                sub_active = np.where(sub_img > threshold)
+                min_y, max_y = int(sub_active[0].min()), int(sub_active[0].max())
+                crop = sub_img[min_y:max_y + 1, :]
+                ch, cw = crop.shape
+                scale = 20.0 / max(ch, cw)
+                new_h = max(1, min(20, int(round(ch * scale))))
+                new_w = max(1, min(20, int(round(cw * scale))))
+                crop_norm = np.clip(crop * (255.0 / p_max), 0.0, 255.0).astype(np.uint8)
+                crop_pil = Image.fromarray(crop_norm)
+                resized_pil = crop_pil.resize((new_w, new_h), Image.Resampling.BILINEAR)
+                resized_arr = np.array(resized_pil, dtype=np.float32) / 255.0
+
+                canvas = np.zeros((28, 28), dtype=np.float32)
+                off_y = (28 - new_h) // 2
+                off_x = (28 - new_w) // 2
+                canvas[off_y:off_y + new_h, off_x:off_x + new_w] = resized_arr
+
+                pred = predict_digit_cnn(canvas, model_dir)
+                d_val = pred["predicted_digit"]
+                d_conf = pred["confidence"]
+                combined_mark_str += str(d_val)
+                total_conf += d_conf
+
+                digits_result.append({
+                    "position": idx + 1,
+                    "digit": d_val,
+                    "confidence": d_conf,
+                    "probabilities": pred["probabilities"],
+                    "canvas_28x28": canvas,
+                })
+
+            avg_conf = total_conf / len(digits_result)
+            return {
+                "success": True,
+                "is_multidigit": True,
+                "predicted_mark": combined_mark_str,
+                "confidence": avg_conf,
+                "digits": digits_result,
+                "primary_canvas": digits_result[0]["canvas_28x28"],
+                "status": "high" if avg_conf >= 85 else ("moderate" if avg_conf >= 55 else "low")
+            }
+
+    except Exception:
+        pass
+
+    # Single-digit pipeline
+    try:
+        canvas, meta = preprocess_handwritten_digit(pil_orig)
+        pred = predict_digit_cnn(canvas, model_dir)
+        p_digit = pred["predicted_digit"]
+        p_conf = pred["confidence"]
+        return {
+            "success": True,
+            "is_multidigit": False,
+            "predicted_mark": str(p_digit),
+            "confidence": p_conf,
+            "digits": [{
+                "position": 1,
+                "digit": p_digit,
+                "confidence": p_conf,
+                "probabilities": pred["probabilities"],
+                "canvas_28x28": canvas,
+            }],
+            "primary_canvas": canvas,
+            "status": "high" if p_conf >= 85 else ("moderate" if p_conf >= 55 else "low")
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 
 
 # ============================================================

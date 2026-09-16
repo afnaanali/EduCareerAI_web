@@ -16,11 +16,14 @@ from .chatbot import get_llm_model, generate_llm_response, build_system_prompt
 from .dl_models import (
     predict_career_ann,
     predict_digit_cnn,
+    preprocess_handwritten_digit,
+    analyze_uploaded_marksheet,
     predict_sentiment_rnn,
     predict_sentiment_lstm,
     compare_rnn_and_lstm,
     analyze_interview_tone_coach,
 )
+
 
 from .roadmap_generator import get_roadmap_for_career
 from .database import (
