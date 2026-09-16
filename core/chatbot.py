@@ -644,15 +644,22 @@ def generate_llm_response(
         try:
             result = model.create_chat_completion(
                 messages=messages,
-                max_tokens=max_tokens,
+                max_tokens=max(max_tokens, 1024),
                 temperature=temperature,
                 top_p=0.9,
             )
             content = result["choices"][0]["message"]["content"].strip()
-            if content and len(content) > 30:
+            finish_reason = result["choices"][0].get("finish_reason", "stop")
+            
+            # Check if generation was cut off mid-sentence
+            is_truncated = finish_reason == "length" or content.endswith(
+                (" of", " and", " the", " with", " to", " in", " for", " a", " an", " or", " but", " that", " which", " as", " by", " at", " from", ":", "-", ",")
+            )
+            if content and len(content) > 120 and not is_truncated:
                 return content
         except Exception:
             pass
+
 
     # 2. Resolve Conversational Context & Intent
     user_query, active_topic, intent, ordinal_idx = resolve_conversational_context(messages)
@@ -876,8 +883,66 @@ def _general_knowledge_answer(query_lower: str) -> str:
     """
     q = query_lower.strip("?! ")
 
+    # ── Dynamic Career Pathway & Skill Plan Generator ────────────────────────
+    if any(k in q for w in ["career guide", "skill plan", "how to become", "study plan for", "roadmap for", "learning path for", "become a", "becoming a", "network engineer"] for k in [w]):
+        from core.roadmap_generator import CAREER_ROADMAPS, DEFAULT_ROADMAP
+        
+        # Match career
+        matched_key = None
+        for key in CAREER_ROADMAPS:
+            if key.lower() in q:
+                matched_key = key
+                break
+        
+        if not matched_key:
+            if "network" in q:
+                matched_key = "Network Engineer"
+            elif "cyber" in q or "security" in q:
+                matched_key = "Cybersecurity Analyst"
+            elif "data sci" in q or "machine learn" in q:
+                matched_key = "Data Scientist"
+            elif "devops" in q:
+                matched_key = "DevOps Engineer"
+            elif "cloud" in q:
+                matched_key = "Cloud Engineer"
+            elif "data" in q:
+                matched_key = "Data Analyst"
+            elif "software" in q or "developer" in q:
+                matched_key = "Software Developer"
+            else:
+                matched_key = "Software Developer"
+
+        rm = CAREER_ROADMAPS.get(matched_key, DEFAULT_ROADMAP)
+        
+        phases_md = []
+        for i, p in enumerate(rm["phases"]):
+            topics_str = "\n".join([f"   - 🔹 {t}" for t in p["topics"]])
+            phases_md.append(
+                f"#### 📍 {p['phase']}\n"
+                f"**Core Topics & Practical Competencies:**\n{topics_str}\n\n"
+                f"🛠️ **Milestone Capstone Project:** `{p['project']}`"
+            )
+        
+        all_phases = "\n\n---\n\n".join(phases_md)
+        skills_str = ", ".join([f"`{s}`" for s in rm["key_skills"]])
+        certs_str = "\n".join([f"- 📜 **{c}**" for c in rm["certifications"]])
+        
+        return (
+            f"Here is your step-by-step career guide and comprehensive skill plan for becoming a **{rm.get('title', matched_key)}**:\n\n"
+            f"**⏳ Estimated Time Commitment:** {rm.get('duration', '5 - 7 Months')} | **🎯 Core Tech Stack:** {skills_str}\n\n"
+            f"---\n\n"
+            f"{all_phases}\n\n"
+            f"---\n\n"
+            f"#### 🎓 Recommended Industry Certifications:\n{certs_str}\n\n"
+            f"#### 💼 Portfolio & Career Launch Strategy:\n"
+            f"1. **Hands-On Virtual Labs:** Build realistic topologies in Cisco Packet Tracer, GNS3, EVE-NG, or AWS/Azure Free Tier.\n"
+            f"2. **Document Everything on GitHub:** Publish configuration templates, Python automation scripts, and network architecture diagrams.\n"
+            f"3. **ATS-Ready Technical Resume:** Highlight protocol mastery (OSPF, BGP, TCP/IP, VLANs) and quantify network uptime or automation improvements."
+        )
+
     # ── Higher Education & Academic Degrees ─────────────────────────────────
     if any(w in q for w in ["phd", "ph.d", "doctorate", "doctoral", "doctor of philosophy"]):
+
         return (
             "A **Ph.D. in Computer Science (Doctor of Philosophy in CS)** is the highest terminal academic and research degree in the field. "
             "Unlike undergraduate or standard master's degrees that focus on learning existing concepts through coursework, a Ph.D. is dedicated "

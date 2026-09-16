@@ -148,8 +148,67 @@ CAREER_ROADMAPS = {
         ],
         "certifications": ["Certified Kubernetes Administrator (CKA)", "AWS Certified DevOps Engineer"],
         "key_skills": ["Linux", "Docker", "Kubernetes", "Git", "Jenkins", "Terraform", "AWS"]
+    },
+    "Network Engineer": {
+        "title": "Network Engineer Career Pathway",
+        "description": "Design, configure, manage, and secure enterprise networking infrastructure, routing protocols, and cloud connectivity.",
+        "duration": "5 - 7 Months",
+        "phases": [
+            {
+                "phase": "Phase 1: Network Fundamentals & OSI Architecture",
+                "topics": ["OSI 7-Layer & TCP/IP Protocol Stack", "IPv4 Subnetting (VLSM, CIDR) & IPv6 Addressing", "Ethernet, Switching, VLANs & Trunking (802.1Q)", "Wireshark Packet Analysis"],
+                "project": "Multi-VLAN Enterprise Office Topology in Cisco Packet Tracer"
+            },
+            {
+                "phase": "Phase 2: Routing Protocols & Enterprise Services",
+                "topics": ["Dynamic Routing Protocols (OSPFv2/v3, EIGRP, BGP Fundamentals)", "NAT, PAT, DHCP, DNS & NTP Configuration", "Access Control Lists (Standard & Extended ACLs)", "First Hop Redundancy (HSRP, VRRP)"],
+                "project": "Inter-Branch WAN Routing Architecture with Failover"
+            },
+            {
+                "phase": "Phase 3: Network Security, Wireless & VPNs",
+                "topics": ["Site-to-Site & Remote Access IPsec VPNs", "Next-Gen Firewalls (Fortinet/Palo Alto basics)", "Enterprise Wireless LAN Controllers (WLC) & 802.11ax", "Zero-Trust Network Access (ZTNA)"],
+                "project": "Secure Corporate Remote-Access Network with Encrypted IPsec Tunnel"
+            },
+            {
+                "phase": "Phase 4: Network Automation & Cloud Networking",
+                "topics": ["Python for Network Automation (Netmiko, Scrapli, Paramiko)", "Ansible Network Playbooks", "RESTCONF / NETCONF & JSON/YAML Data Formats", "AWS VPC & Azure Virtual Network Hybrid Peering"],
+                "project": "Automated Network Config Management and Backup Pipeline using Python & Ansible"
+            }
+        ],
+        "certifications": ["Cisco Certified Network Associate (CCNA 200-301)", "CompTIA Network+", "Cisco CCNP Enterprise (Core)"],
+        "key_skills": ["TCP/IP", "Subnetting", "Routing & Switching", "Cisco IOS", "Wireshark", "Python Automation", "VPNs", "Firewalls"]
+    },
+    "Cybersecurity Analyst": {
+        "title": "Cybersecurity Analyst Career Pathway",
+        "description": "Protect enterprise networks, detect active intrusions, conduct vulnerability assessments, and respond to cyber incidents.",
+        "duration": "6 Months",
+        "phases": [
+            {
+                "phase": "Phase 1: Security Fundamentals & Threat Landscape",
+                "topics": ["CIA Triad, Defense-in-Depth, Identity Governance", "Network & Endpoint Security Fundamentals", "Linux & Windows Hardening", "Malware Types & Attack Vectors"],
+                "project": "Vulnerability Scan & Baseline Hardening Report"
+            },
+            {
+                "phase": "Phase 2: SOC Operations & SIEM Threat Detection",
+                "topics": ["Splunk / Elastic SIEM Log Ingestion & Querying", "Intrusion Detection Systems (Snort, Suricata, Zeek)", "MITRE ATT&CK Framework Mapping", "Log Analysis & Anomaly Detection"],
+                "project": "Full Incident Detection & Threat Hunting Lab in Splunk"
+            },
+            {
+                "phase": "Phase 3: Ethical Hacking & Defensive Tactics",
+                "topics": ["Nmap, Burp Suite, Metasploit, Wireshark", "OWASP Top 10 Web Vulnerability Exploitation & Remediation", "Digital Forensics & Evidence Preservation", "Phishing Simulation & Email Security"],
+                "project": "Penetration Testing & Remediation Audit on Vulnerable Web App"
+            },
+            {
+                "phase": "Phase 4: Compliance & Cloud Security",
+                "topics": ["NIST CSF, ISO 27001, GDPR & HIPAA Standards", "Cloud Security Posture Management (AWS IAM, GuardDuty)", "Incident Response Runbooks & Post-Mortems"],
+                "project": "Complete Security Incident Response Plan & Executive Governance Brief"
+            }
+        ],
+        "certifications": ["CompTIA Security+ (SY0-701)", "Certified SOC Analyst (CSA)", "BTL1 (Blue Team Level 1)"],
+        "key_skills": ["SIEM (Splunk)", "Wireshark", "Linux", "Nmap", "Incident Response", "Vulnerability Management", "Network Security"]
     }
 }
+
 
 DEFAULT_ROADMAP = {
     "title": "Professional Career Development Pathway",

@@ -1014,7 +1014,7 @@ elif nav_selection == "🤖 AI Assistant":
     with top_c2:
         temperature = st.slider("Creativity (Temperature)", 0.1, 1.0, 0.7, 0.1, key="chat_temp")
     with top_c3:
-        max_tokens = st.slider("Response Length", 50, 400, 200, 50, key="chat_max_tok")
+        max_tokens = st.slider("Response Length (Tokens)", 256, 2048, 1024, 64, key="chat_max_tok")
 
     # ── Document Upload Panel ────────────────────────────────────────────────
     with st.expander(
