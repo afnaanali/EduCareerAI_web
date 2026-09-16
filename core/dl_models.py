@@ -345,6 +345,35 @@ def analyze_uploaded_marksheet(
         if max(pil_orig.size) > 1024:
             pil_orig.thumbnail((1024, 1024), Image.Resampling.BILINEAR)
 
+        # Smart ROI: If image has surrounding UI chrome or extra whitespace, isolate primary circle/cluster
+        if ndi is not None:
+            gray_full = np.array(pil_orig.convert("L"), dtype=np.float32)
+            hf, wf = gray_full.shape
+            bg_med = float(np.median(gray_full))
+            proc_full = np.clip(bg_med - gray_full if bg_med > 127.0 else gray_full - bg_med, 0.0, 255.0)
+            bin_full = (proc_full > max(18.0, np.max(proc_full) * 0.18)).astype(np.uint8)
+            lbl_f, num_f = ndi.label(bin_full)
+            circle_bbox = None
+            max_c_area = 0
+            for i in range(1, num_f + 1):
+                ys, xs = np.where(lbl_f == i)
+                area = len(ys)
+                min_y, max_y = int(ys.min()), int(ys.max())
+                min_x, max_x = int(xs.min()), int(xs.max())
+                cw = max_x - min_x + 1
+                ch = max_y - min_y + 1
+                aspect = cw / float(max(1, ch))
+                if area > 800 and 0.60 <= aspect <= 1.5 and cw > 0.35 * wf:
+                    if area > max_c_area:
+                        max_c_area = area
+                        circle_bbox = (min_x, min_y, max_x, max_y)
+
+            if circle_bbox is not None:
+                min_x, min_y, max_x, max_y = circle_bbox
+                pad_x = max(2, int((max_x - min_x) * 0.04))
+                pad_y = max(2, int((max_y - min_y) * 0.04))
+                pil_orig = pil_orig.crop((max(0, min_x - pad_x), max(0, min_y - pad_y), min(wf, max_x + pad_x), min(hf, max_y + pad_y)))
+
         gray = np.array(pil_orig.convert("L"), dtype=np.float32)
         h, w = gray.shape
         if h < 5 or w < 5:
