@@ -1599,31 +1599,49 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                             unsafe_allow_html=True
                         )
 
-                    # If multi-digit, show per-digit segmentation breakdown
+                    # If multi-digit / fractional mark, show per-digit segmentation breakdown
                     if upload_res.get("is_multidigit", False):
-                        st.info(f"🔢 **Multi-Digit Segmentation Active:** Detected **{len(upload_res['digits'])}** distinct digits from left to right.")
-                        seg_cols = st.columns(len(upload_res["digits"]))
-                        for i, d_info in enumerate(upload_res["digits"]):
-                            with seg_cols[i]:
-                                st.image(d_info["canvas_28x28"], caption=f"Digit #{i+1}: '{d_info['digit']}' ({d_info['confidence']:.1f}%)", width=100, clamp=True)
+                        if upload_res.get("is_fraction", False):
+                            st.info(f"🔢 **Fraction & Multi-Digit Recognition Active:** Detected **{len(upload_res['digits'])}** distinct digits across Numerator & Denominator (outer enclosing border/circle filtered).")
+                        else:
+                            st.info(f"🔢 **Multi-Digit Segmentation Active:** Detected **{len(upload_res['digits'])}** distinct digits from left to right.")
 
-                    # Plotly Probability Bar Chart for primary/active digit
-                    primary_probs = upload_res["digits"][0]["probabilities"]
+                        seg_cols = st.columns(min(6, len(upload_res["digits"])))
+                        for i, d_info in enumerate(upload_res["digits"]):
+                            col_idx = i % 6
+                            with seg_cols[col_idx]:
+                                lbl = d_info.get("label", f"Digit #{i+1}")
+                                st.image(d_info["canvas_28x28"], caption=f"{lbl}: '{d_info['digit']}' ({d_info['confidence']:.1f}%)", width=100, clamp=True)
+
+                        # Select which digit to view detailed probabilities for
+                        digit_labels = [f"{d.get('label', f'Digit #{i+1}')} (Predicted: '{d['digit']}')" for i, d in enumerate(upload_res["digits"])]
+                        selected_d_idx = st.selectbox(
+                            "🔍 Inspect Softmax Probabilities for Segmented Digit:",
+                            range(len(upload_res["digits"])),
+                            format_func=lambda idx: digit_labels[idx],
+                            key="select_segmented_digit_prob"
+                        )
+                        active_digit_info = upload_res["digits"][selected_d_idx]
+                    else:
+                        active_digit_info = upload_res["digits"][0]
+
+                    # Plotly Probability Bar Chart for selected digit
+                    active_probs = active_digit_info["probabilities"]
                     prob_df_upload = pd.DataFrame({
                         "Digit": [f"Digit {d}" for d in range(10)],
-                        "Probability": primary_probs
+                        "Probability": active_probs
                     })
                     fig_up_cnn = px.bar(
                         prob_df_upload,
                         x="Digit",
                         y="Probability",
-                        text=[f"{p:.1f}%" for p in primary_probs],
+                        text=[f"{p:.1f}%" for p in active_probs],
                         labels={"Probability": "Softmax Confidence (%)", "Digit": "Class (0–9)"},
                         color="Probability",
                         color_continuous_scale=["#E0E7FF", "#4338CA"]
                     )
                     fig_up_cnn.update_layout(
-                        title=f"📊 10-Class Softmax Probability Distribution (Digit '{upload_res['digits'][0]['digit']}')",
+                        title=f"📊 10-Class Softmax Probability Distribution ({active_digit_info.get('label', 'Digit')}: Predicted '{active_digit_info['digit']}')",
                         title_font_size=14,
                         height=240,
                         margin=dict(l=10, r=10, t=35, b=10),

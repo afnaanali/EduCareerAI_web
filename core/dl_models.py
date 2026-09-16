@@ -32,6 +32,11 @@ except ImportError:
     torch = None
     F = None
 
+try:
+    import scipy.ndimage as ndi
+except ImportError:
+    ndi = None
+
 
 
 ANN_SKILLS = [
@@ -315,15 +320,17 @@ def analyze_uploaded_marksheet(
     model_dir: str = None
 ) -> dict:
     """
-    End-to-end analysis for uploaded handwritten numerical marks:
+    End-to-end robust analysis for uploaded handwritten numerical marks:
     - Preprocesses uploaded image (handles paper photos & MNIST style).
-    - Checks for multi-digit segmentation (e.g. 78, 25, 100).
+    - Removes teacher/exam outer enclosing circles and stamps.
+    - Handles fractional marks (e.g. 90/100, 45/50) with numerator & denominator grouping.
+    - Handles multi-digit marks (e.g. 95, 80, 100) from left to right.
     - Runs 2D CNN inference on each segmented digit.
-    - Returns prediction, confidence, probability breakdown, and 28x28 previews.
+    - Returns prediction string, confidence, probability breakdown, and 28x28 previews.
     """
     try:
-        if isinstance(image_input, bytes):
-            pil_orig = Image.open(io.BytesIO(image_input))
+        if isinstance(image_input, (str, bytes)):
+            pil_orig = Image.open(image_input if isinstance(image_input, str) else io.BytesIO(image_input))
         elif isinstance(image_input, Image.Image):
             pil_orig = image_input
         else:
@@ -334,10 +341,16 @@ def analyze_uploaded_marksheet(
             "error": f"Invalid or unreadable image file: {e}"
         }
 
-    # First attempt multi-digit segmentation
     try:
+        if max(pil_orig.size) > 1024:
+            pil_orig.thumbnail((1024, 1024), Image.Resampling.BILINEAR)
+
         gray = np.array(pil_orig.convert("L"), dtype=np.float32)
         h, w = gray.shape
+        if h < 5 or w < 5:
+            return {"success": False, "error": "Image dimensions are too small to detect handwriting."}
+
+        # 1. Background inversion & normalization
         margin_h = max(1, h // 10)
         margin_w = max(1, w // 10)
         border_pixels = np.concatenate([
@@ -347,11 +360,7 @@ def analyze_uploaded_marksheet(
             gray[:, -margin_w:].flatten(),
         ])
         bg_median = float(np.median(border_pixels))
-        if bg_median > 127.0:
-            processed = bg_median - gray
-        else:
-            processed = gray - bg_median
-        processed = np.clip(processed, 0.0, 255.0)
+        processed = np.clip(bg_median - gray if bg_median > 127.0 else gray - bg_median, 0.0, 255.0)
         p_max = float(np.max(processed))
 
         if p_max < 15.0:
@@ -363,84 +372,144 @@ def analyze_uploaded_marksheet(
         threshold = max(18.0, p_max * 0.18)
         binary = (processed > threshold).astype(np.uint8)
 
-        # Vertical projection profile (sum columns)
-        v_proj = binary.sum(axis=0)
-        in_digit = False
-        start_x = 0
-        raw_segments = []
-        for x, val in enumerate(v_proj):
-            if val > 0 and not in_digit:
-                in_digit = True
-                start_x = x
-            elif val == 0 and in_digit:
-                in_digit = False
-                if (x - start_x) >= 4:
-                    raw_segments.append((start_x, x))
-        if in_digit and (w - start_x) >= 4:
-            raw_segments.append((start_x, w))
+        # 2. Connected component labeling
+        if ndi is not None:
+            lbl, num_features = ndi.label(binary)
+        else:
+            lbl, num_features = None, 0
 
-        # Filter segments with sufficient active area
-        valid_segments = []
-        for (sx, ex) in raw_segments:
-            sub = processed[:, sx:ex]
-            sub_active = np.where(sub > threshold)
-            if len(sub_active[0]) >= 15:
-                valid_segments.append((sx, ex))
+        if lbl is not None and num_features > 0:
+            raw_comps = []
+            for i in range(1, num_features + 1):
+                ys, xs = np.where(lbl == i)
+                area = len(ys)
+                if area < 12:
+                    continue
+                min_y, max_y = int(ys.min()), int(ys.max())
+                min_x, max_x = int(xs.min()), int(xs.max())
+                cw = max_x - min_x + 1
+                ch = max_y - min_y + 1
 
-        # Multi-digit processing if multiple distinct segments detected
-        if len(valid_segments) > 1 and len(valid_segments) <= 4:
-            digits_result = []
-            combined_mark_str = ""
-            total_conf = 0.0
+                # Outer circle / border suppression
+                touches_left = (min_x <= margin_w)
+                touches_right = (max_x >= w - margin_w)
+                touches_top = (min_y <= margin_h)
+                touches_bottom = (max_y >= h - margin_h)
+                touch_count = touches_left + touches_right + touches_top + touches_bottom
 
-            for idx, (sx, ex) in enumerate(valid_segments):
-                sub_img = processed[:, sx:ex]
-                sub_active = np.where(sub_img > threshold)
-                min_y, max_y = int(sub_active[0].min()), int(sub_active[0].max())
-                crop = sub_img[min_y:max_y + 1, :]
-                ch, cw = crop.shape
-                scale = 20.0 / max(ch, cw)
-                new_h = max(1, min(20, int(round(ch * scale))))
-                new_w = max(1, min(20, int(round(cw * scale))))
-                crop_norm = np.clip(crop * (255.0 / p_max), 0.0, 255.0).astype(np.uint8)
-                crop_pil = Image.fromarray(crop_norm)
-                resized_pil = crop_pil.resize((new_w, new_h), Image.Resampling.BILINEAR)
-                resized_arr = np.array(resized_pil, dtype=np.float32) / 255.0
+                # Exclude enclosing teacher circles and outer margin lines
+                if (cw > 0.65 * w and ch > 0.35 * h) or (touch_count >= 2 and area > 0.06 * w * h) or (cw > 0.85 * w) or (ch > 0.85 * h):
+                    continue
 
-                canvas = np.zeros((28, 28), dtype=np.float32)
-                off_y = (28 - new_h) // 2
-                off_x = (28 - new_w) // 2
-                canvas[off_y:off_y + new_h, off_x:off_x + new_w] = resized_arr
+                aspect = cw / float(ch)
+                is_fraction_bar = (aspect >= 2.0 and cw > 0.25 * w)
 
-                pred = predict_digit_cnn(canvas, model_dir)
-                d_val = pred["predicted_digit"]
-                d_conf = pred["confidence"]
-                combined_mark_str += str(d_val)
-                total_conf += d_conf
-
-                digits_result.append({
-                    "position": idx + 1,
-                    "digit": d_val,
-                    "confidence": d_conf,
-                    "probabilities": pred["probabilities"],
-                    "canvas_28x28": canvas,
+                raw_comps.append({
+                    "id": i,
+                    "bbox": (min_x, min_y, max_x, max_y),
+                    "center_x": (min_x + max_x) / 2.0,
+                    "center_y": (min_y + max_y) / 2.0,
+                    "w": cw,
+                    "h": ch,
+                    "area": area,
+                    "aspect": aspect,
+                    "is_bar": is_fraction_bar,
+                    "ys": ys,
+                    "xs": xs
                 })
 
-            avg_conf = total_conf / len(digits_result)
-            return {
-                "success": True,
-                "is_multidigit": True,
-                "predicted_mark": combined_mark_str,
-                "confidence": avg_conf,
-                "digits": digits_result,
-                "primary_canvas": digits_result[0]["canvas_28x28"],
-                "status": "high" if avg_conf >= 85 else ("moderate" if avg_conf >= 55 else "low")
-            }
+            if raw_comps:
+                # Filter small speckles (< 20% max non-border area)
+                max_comp_area = max(c["area"] for c in raw_comps)
+                min_valid_area = max(35, int(max_comp_area * 0.18))
+                valid_comps = [c for c in raw_comps if c["area"] >= min_valid_area]
+                digit_comps = [c for c in valid_comps if not c["is_bar"]]
+                if not digit_comps:
+                    digit_comps = valid_comps
+
+                # Check if fractional mark (e.g. 90/100)
+                bars = [c for c in valid_comps if c["is_bar"]]
+                y_centers = [c["center_y"] for c in digit_comps]
+                y_min, y_max = min(y_centers), max(y_centers)
+
+                is_fraction = False
+                top_group, bot_group = [], []
+
+                if bars:
+                    bar = max(bars, key=lambda b: b["w"])
+                    bar_y = bar["center_y"]
+                    top_group = [c for c in digit_comps if c["center_y"] < bar_y]
+                    bot_group = [c for c in digit_comps if c["center_y"] > bar_y]
+                    if top_group and bot_group:
+                        is_fraction = True
+                elif len(digit_comps) >= 2 and (y_max - y_min) > (0.25 * h):
+                    mid_y = (y_min + y_max) / 2.0
+                    top_group = [c for c in digit_comps if c["center_y"] < mid_y]
+                    bot_group = [c for c in digit_comps if c["center_y"] >= mid_y]
+                    if top_group and bot_group:
+                        is_fraction = True
+
+                def _process_group(comp_list, label_prefix):
+                    comp_list = sorted(comp_list, key=lambda c: c["center_x"])
+                    g_str = ""
+                    g_digits = []
+                    for idx, c in enumerate(comp_list):
+                        mask = (lbl == c["id"])
+                        sub = np.where(mask, processed, 0.0)
+                        ys, xs = c["ys"], c["xs"]
+                        crop = sub[ys.min():ys.max()+1, xs.min():xs.max()+1]
+                        ch, cw = crop.shape
+                        scale = 20.0 / max(ch, cw)
+                        new_h = max(1, min(20, int(round(ch * scale))))
+                        new_w = max(1, min(20, int(round(cw * scale))))
+                        crop_norm = np.clip(crop * (255.0 / max(1.0, float(np.max(crop)))), 0.0, 255.0).astype(np.uint8)
+                        crop_pil = Image.fromarray(crop_norm).resize((new_w, new_h), Image.Resampling.BILINEAR)
+                        resized_arr = np.array(crop_pil, dtype=np.float32) / 255.0
+                        canvas = np.zeros((28, 28), dtype=np.float32)
+                        off_y = (28 - new_h) // 2
+                        off_x = (28 - new_w) // 2
+                        canvas[off_y:off_y + new_h, off_x:off_x + new_w] = resized_arr
+
+                        pred = predict_digit_cnn(canvas, model_dir)
+                        d = pred["predicted_digit"]
+                        conf = pred["confidence"]
+                        g_str += str(d)
+                        g_digits.append({
+                            "position": len(g_digits) + 1,
+                            "label": f"{label_prefix} #{idx + 1}" if is_fraction else f"Digit #{idx + 1}",
+                            "digit": d,
+                            "confidence": conf,
+                            "probabilities": pred["probabilities"],
+                            "canvas_28x28": canvas,
+                        })
+                    return g_str, g_digits
+
+                if is_fraction and top_group and bot_group:
+                    num_str, top_digits = _process_group(top_group, "Numerator")
+                    den_str, bot_digits = _process_group(bot_group, "Denominator")
+                    full_mark = f"{num_str} / {den_str}"
+                    all_digits = top_digits + bot_digits
+                    avg_conf = sum(d["confidence"] for d in all_digits) / len(all_digits)
+                else:
+                    full_mark, all_digits = _process_group(digit_comps, "Digit")
+                    avg_conf = sum(d["confidence"] for d in all_digits) / len(all_digits)
+
+                status = "high" if avg_conf >= 85 else ("moderate" if avg_conf >= 55 else "low")
+                return {
+                    "success": True,
+                    "predicted_mark": full_mark,
+                    "is_multidigit": len(all_digits) > 1,
+                    "is_fraction": is_fraction,
+                    "confidence": avg_conf,
+                    "digits": all_digits,
+                    "primary_canvas": all_digits[0]["canvas_28x28"],
+                    "status": status
+                }
 
     except Exception:
         pass
 
-    # Single-digit pipeline
+    # Single-digit fallback pipeline
     try:
         canvas, meta = preprocess_handwritten_digit(pil_orig)
         pred = predict_digit_cnn(canvas, model_dir)
@@ -448,11 +517,13 @@ def analyze_uploaded_marksheet(
         p_conf = pred["confidence"]
         return {
             "success": True,
-            "is_multidigit": False,
             "predicted_mark": str(p_digit),
+            "is_multidigit": False,
+            "is_fraction": False,
             "confidence": p_conf,
             "digits": [{
                 "position": 1,
+                "label": "Digit #1",
                 "digit": p_digit,
                 "confidence": p_conf,
                 "probabilities": pred["probabilities"],

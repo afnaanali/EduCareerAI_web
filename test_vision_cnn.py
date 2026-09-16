@@ -89,9 +89,29 @@ def run_tests():
     print("TEST 7 (Multi-digit '78'):", res7["predicted_mark"], "| Is multidigit:", res7["is_multidigit"], "| Conf:", f"{res7['confidence']:.2f}%")
     assert res7["success"]
 
+    # ── TEST 8: Circled fractional mark test (e.g. circled 90 / 100 style)
+    img8 = Image.new("RGB", (200, 200), color="white")
+    d8 = ImageDraw.Draw(img8)
+    # Teacher outer enclosing circle
+    d8.ellipse([10, 10, 190, 190], outline="black", width=6)
+    # Numerator (Digit 7 on top)
+    d8.line([70, 35, 130, 35], fill="black", width=8)
+    d8.line([130, 35, 85, 85], fill="black", width=8)
+    # Horizontal fraction bar
+    d8.line([40, 100, 160, 100], fill="black", width=8)
+    # Denominator (Digit 1 on bottom: vertical line)
+    d8.line([100, 115, 100, 175], fill="black", width=8)
+    buf8 = io.BytesIO()
+    img8.save(buf8, format="PNG")
+    res8 = analyze_uploaded_marksheet(buf8.getvalue())
+    print("TEST 8 (Circled Fraction '7 / 1'):", res8["predicted_mark"], "| Is fraction:", res8.get("is_fraction"), "| Conf:", f"{res8['confidence']:.2f}%")
+    assert res8["success"] and res8["is_fraction"] and res8["predicted_mark"] == "7 / 1"
+
     print("========================================")
-    print("ALL 7 VISION CNN TESTS COMPLETED & PASSED 100%!")
+    print("ALL 8 VISION CNN TESTS COMPLETED & PASSED 100%!")
     print("========================================")
+
 
 if __name__ == "__main__":
     run_tests()
+
