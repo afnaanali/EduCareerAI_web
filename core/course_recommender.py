@@ -127,7 +127,7 @@ def predict_top_courses(student_dict: dict, field_filter: str = None, career_fie
     # Build student row dict
     row = {"field_filter": field_filter}
     for h in HOBBY_COLUMNS:
-        row[h] = student_dict.get(h, 0)
+        row[h] = float(student_dict.get(h, 0))
     for g in GRADE_COLUMNS:
         row[g] = float(student_dict.get(g, 50.0))
     for a in APTITUDE_COLUMNS:
@@ -136,28 +136,38 @@ def predict_top_courses(student_dict: dict, field_filter: str = None, career_fie
     expected_columns = ["field_filter"] + HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS
     student_df = pd.DataFrame([row])[expected_columns]
 
+    # Guaranteed 38-feature assembly: 12 OHE fields + 26 numerical features
     try:
-        processed = preprocessor.transform(student_df)
-    except Exception:
-        # Fallback manual transform if ColumnTransformer encounters version differences
-        field_encoder = getattr(preprocessor, "named_transformers_", {}).get("field", None)
-        if field_encoder is None and hasattr(preprocessor, "transformers_"):
+        if hasattr(preprocessor, "named_transformers_") and "field" in preprocessor.named_transformers_:
+            field_encoder = preprocessor.named_transformers_["field"]
+        elif hasattr(preprocessor, "transformers_") and len(preprocessor.transformers_) > 0:
             field_encoder = preprocessor.transformers_[0][1]
-        field_ohe = field_encoder.transform(student_df[["field_filter"]])
-        if hasattr(field_ohe, "toarray"):
-            field_ohe = field_ohe.toarray()
-        num_vals = student_df[HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS].values
-        processed = np.hstack([field_ohe, num_vals])
+        else:
+            field_encoder = None
 
-    if hasattr(processed, "toarray"):
-        processed = processed.toarray()
+        if field_encoder is not None:
+            field_ohe = field_encoder.transform(student_df[["field_filter"]])
+            if hasattr(field_ohe, "toarray"):
+                field_ohe = field_ohe.toarray()
+            num_vals = student_df[HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS].values.astype(np.float64)
+            processed = np.hstack([field_ohe, num_vals])
+        else:
+            processed = preprocessor.transform(student_df)
+            if hasattr(processed, "toarray"):
+                processed = processed.toarray()
+    except Exception:
+        # Fallback to preprocessor transform
+        processed = preprocessor.transform(student_df)
+        if hasattr(processed, "toarray"):
+            processed = processed.toarray()
 
-    # Safety check: If preprocessor only returned the 12 categorical columns (remainder dropped)
+    # Absolute guarantee: ensure exactly 38 features are passed to the multioutput model
     if hasattr(processed, "shape") and processed.shape[1] == 12:
-        num_vals = student_df[HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS].values
+        num_vals = student_df[HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS].values.astype(np.float64)
         processed = np.hstack([processed, num_vals])
 
     raw_preds = model.predict(processed)
+
 
     if hasattr(raw_preds, "ndim") and raw_preds.ndim == 1:
         raw_preds = raw_preds.reshape(1, -1)

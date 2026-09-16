@@ -7,8 +7,10 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 
+# EduCareerAI Unified - Production Release v1.1.2
 # Add unified root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
+
 
 # Global cross-version compatibility for unpickling Scikit-Learn pipelines and models
 try:
