@@ -14,10 +14,24 @@ from typing import Dict, Any, List, Tuple, Optional
 
 
 import numpy as np
-from PIL import Image
-import h5py
-import torch
-import torch.nn.functional as F
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
+try:
+    import h5py
+except ImportError:
+    h5py = None
+
+try:
+    import torch
+    import torch.nn.functional as F
+except ImportError:
+    torch = None
+    F = None
+
 
 
 ANN_SKILLS = [
