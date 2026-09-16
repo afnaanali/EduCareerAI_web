@@ -1545,30 +1545,77 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
         st.markdown("#### 📷 Option 1: Upload Handwritten Mark / Digit")
         st.caption("Upload a photo or scan of handwritten numerical marks (e.g. from an exam sheet or notebook). Supported: **JPG, JPEG, PNG**.")
 
+        st.info(
+            """
+            💡 **Pro Tip for Best Accuracy:** Upload a **close-up cropped photo or snip** focused directly on the handwritten marks (e.g., circled **90/100** or score **95**). Avoid uploading wide full-screen desktop screenshots containing window borders or navigation bars.
+            """
+        )
+
+        # Quick-test preset buttons
+        st.markdown("##### ⚡ Quick-Test Demo Marks (1-Click Test)")
+        c_demo1, c_demo2, c_demo3, c_demo4 = st.columns(4)
+        active_demo_file = None
+
+        with c_demo1:
+            if st.button("📝 Circled 90 / 100", use_container_width=True, key="btn_demo_90_100"):
+                active_demo_file = "data/sample_90_100_circled.png"
+                st.session_state["cnn_active_demo"] = active_demo_file
+        with c_demo2:
+            if st.button("📝 Score 95", use_container_width=True, key="btn_demo_95"):
+                active_demo_file = "data/sample_95.png"
+                st.session_state["cnn_active_demo"] = active_demo_file
+        with c_demo3:
+            if st.button("📝 Score 85", use_container_width=True, key="btn_demo_85"):
+                active_demo_file = "data/sample_85.png"
+                st.session_state["cnn_active_demo"] = active_demo_file
+        with c_demo4:
+            if st.button("📝 Single Digit 7", use_container_width=True, key="btn_demo_7"):
+                active_demo_file = "data/sample_7.png"
+                st.session_state["cnn_active_demo"] = active_demo_file
+
+        # Check if session state has an active demo
+        current_demo = st.session_state.get("cnn_active_demo", None)
+
         uploaded_digit_file = st.file_uploader(
-            "Choose a handwritten numerical mark image:",
+            "Or upload your own handwritten mark image:",
             type=["png", "jpg", "jpeg"],
             key="cnn_marksheet_uploader",
             help="Upload a clear photograph or scan containing handwritten numerical digits."
         )
 
+        # Determine active image source (uploaded file or clicked demo)
+        target_image_source = None
+        target_image_name = ""
+        target_image_size_kb = 0.0
+
         if uploaded_digit_file is not None:
+            target_image_source = uploaded_digit_file.getvalue()
+            target_image_name = uploaded_digit_file.name
+            target_image_size_kb = len(target_image_source) / 1024.0
+            # Reset demo if user uploaded new file
+            st.session_state["cnn_active_demo"] = None
+        elif current_demo is not None and os.path.exists(current_demo):
+            with open(current_demo, "rb") as f:
+                target_image_source = f.read()
+            target_image_name = os.path.basename(current_demo)
+            target_image_size_kb = len(target_image_source) / 1024.0
+
+        if target_image_source is not None:
             c_up_prev, c_up_action = st.columns([1, 2])
             with c_up_prev:
                 st.image(
-                    uploaded_digit_file,
-                    caption="🖼️ Uploaded Image",
+                    target_image_source,
+                    caption="🖼️ Selected Mark Image",
                     width=200
                 )
             with c_up_action:
                 st.markdown("**Image Details:**")
-                st.caption(f"Filename: `{uploaded_digit_file.name}` • Size: `{len(uploaded_digit_file.getvalue()) / 1024:.1f} KB`")
+                st.caption(f"Filename: `{target_image_name}` • Size: `{target_image_size_kb:.1f} KB`")
                 analyze_upload_clicked = st.button("🔍 Analyze & Digitize Mark with CNN", key="btn_analyze_upload_digit", type="primary")
 
-            if analyze_upload_clicked:
+            if analyze_upload_clicked or current_demo is not None:
                 with st.spinner("⚙️ Preprocessing image & running 2D CNN inference..."):
-                    img_bytes = uploaded_digit_file.getvalue()
-                    upload_res = analyze_uploaded_marksheet(img_bytes)
+                    upload_res = analyze_uploaded_marksheet(target_image_source)
 
                 if not upload_res.get("success", False):
                     st.error(f"⚠️ {upload_res.get('error', 'Could not process image.')}")
@@ -1578,7 +1625,7 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                     
                     p_col1, p_col2, p_col3 = st.columns(3)
                     with p_col1:
-                        st.image(uploaded_digit_file, caption="1. 📷 Original Upload", width=140)
+                        st.image(target_image_source, caption="1. 📷 Original Upload", width=140)
                     with p_col2:
                         st.image(upload_res["primary_canvas"], caption="2. ⚙️ 28×28 Centered MNIST Input", width=140, clamp=True)
                     with p_col3:
