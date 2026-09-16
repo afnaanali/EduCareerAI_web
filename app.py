@@ -1460,7 +1460,7 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
 
     lab_tab1, lab_tab2, lab_tab3 = st.tabs([
         "⚡ Career ANN (8 Skills → Career)",
-        "✍️ MNIST Digit CNN (28x28 → Digit)",
+        "📝 Marksheet & Exam Scanner (Vision CNN)",
         "🎤 AI Interview & Tone Coach (Recurrent NLP)"
     ])
 
@@ -1520,25 +1520,39 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
             except Exception as e:
                 st.error(f"ANN execution error: {e}")
 
-    # 2. CNN Tab
+    # 2. CNN Tab — EdTech Marksheet & Exam Scanner
     with lab_tab2:
-        st.markdown("### ✍️ Convolutional Neural Network (CNN) Digit Classifier")
-        st.caption("Architecture: Conv2D(32) → MaxPool → Conv2D(64) → MaxPool → Flatten → Dense(64) → Dense(10, Softmax)")
-        st.write("Select an authentic handwritten digit from the MNIST test benchmark:")
+        st.markdown("### 📝 EdTech Handwritten Marksheet & Exam Scanner (Vision AI)")
+        st.caption("Architecture: Conv2D(32) → MaxPool2D → Conv2D(64) → MaxPool2D → Flatten → Dense(64) → Dense(10, Softmax)")
+        
+        st.markdown(
+            """
+            <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px 16px; margin-bottom:15px;">
+                <span style="font-weight:700; color:#166534; font-size:14px;">🎓 EdTech Vision Application</span>
+                <p style="margin:4px 0 0 0; font-size:13px; color:#14532D; line-height:1.5;">
+                    Simulates an automated AI grading assistant that scans handwritten exam papers, numerical grade marks, and student test scores using 
+                    <b>2D Convolutional Neural Networks</b> to automatically digitize academic data for career profiling.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        
+        st.write("Select a handwritten marksheet numerical score sample to scan and classify:")
 
         c_pick1, c_pick2 = st.columns([1, 1])
         with c_pick1:
             digit_choice = st.selectbox(
-                "Select Target Digit",
+                "Select Target Exam Mark / Digit",
                 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 index=2,
                 key="cnn_digit_select"
             )
         with c_pick2:
             sample_variant = st.selectbox(
-                "Select Sample Variation",
+                "Select Marksheet Handwriting Sample",
                 [1, 2, 3, 4, 5],
-                format_func=lambda x: f"Sample #{x}",
+                format_func=lambda x: f"Student Sample #{x}",
                 index=0,
                 key="cnn_sample_var"
             )
@@ -1559,33 +1573,33 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
         with c_col1:
             st.image(
                 sample_img,
-                caption=f"Handwritten Digit {digit_choice} (Sample #{sample_variant})",
+                caption=f"Exam Sheet Mark: {digit_choice} (Sample #{sample_variant})",
                 width=170,
                 clamp=True
             )
         with c_col2:
-            if st.button("🔍 Classify Image with CNN", key="btn_cnn_pred", type="primary"):
+            if st.button("🔍 Scan & Digitize Mark with Vision CNN", key="btn_cnn_pred", type="primary"):
                 try:
                     cnn_res = predict_digit_cnn(sample_img)
                     p_digit = cnn_res['predicted_digit']
                     p_conf = cnn_res['confidence']
                     
                     if p_digit == digit_choice:
-                        st.success(f"🎯 Correct Match! Predicted Digit: **{p_digit}** ({p_conf:.2f}% confidence)")
+                        st.success(f"🎯 Mark Successfully Digitized! Detected Score: **{p_digit}** ({p_conf:.2f}% confidence)")
                     else:
-                        st.warning(f"Predicted Digit: **{p_digit}** ({p_conf:.2f}% confidence)")
+                        st.warning(f"Digitized Score: **{p_digit}** ({p_conf:.2f}% confidence)")
 
                     cnn_df = pd.DataFrame({
-                        "Digit": [f"Digit {d}" for d in range(10)],
+                        "Digit": [f"Mark {d}" for d in range(10)],
                         "Probability": cnn_res["probabilities"]
                     })
                     fig_cnn = px.bar(
                         cnn_df,
                         x="Digit",
                         y="Probability",
-                        labels={"Probability": "Confidence (%)", "Digit": "Class"},
+                        labels={"Probability": "Confidence (%)", "Digit": "Digit Class"},
                         color="Probability",
-                        color_continuous_scale=["#E0E7FF", "#6366F1"]
+                        color_continuous_scale=["#DCFCE7", "#16A34A"]
                     )
                     fig_cnn.update_layout(
                         height=220,
@@ -1597,6 +1611,21 @@ elif nav_selection == "🧠 AI / Deep Learning Lab":
                     st.plotly_chart(fig_cnn, use_container_width=True, config={'displayModeBar': False})
                 except Exception as e:
                     st.error(f"CNN execution error: {e}")
+
+        st.divider()
+        with st.expander("📚 Student Learning Explainer: How Vision CNNs Process Exam Digits"):
+            st.markdown(
+                """
+                #### 🧠 The 3 Stages of Vision AI Processing:
+                1. **Convolutional Layers (`Conv2D(32)` & `Conv2D(64)`):**
+                   - 32 and 64 mathematical filter matrices slide across the $28 \\times 28$ pixel grid detecting visual strokes (horizontal lines, vertical curves, closed loops like in '8' vs open angles in '4').
+                2. **Max Pooling (`MaxPooling2D`):**
+                   - Downsamples the feature maps by extracting the maximum pixel activations in $2 \\times 2$ regions. This provides **spatial translation invariance** so handwriting variations don't break recognition.
+                3. **Dense Classification (`Dense(64)` → `Dense(10, Softmax)`):**
+                   - Flattens the feature representations and computes normalized probability outputs ($0.0 - 1.0$) across all 10 numerical mark classes.
+                """
+            )
+
 
     # 3. 🎤 AI Interview & Cover Letter Tone Coach Tab
     with lab_tab3:
