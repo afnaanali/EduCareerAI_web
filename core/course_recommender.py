@@ -136,7 +136,27 @@ def predict_top_courses(student_dict: dict, field_filter: str = None, career_fie
     expected_columns = ["field_filter"] + HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS
     student_df = pd.DataFrame([row])[expected_columns]
 
-    processed = preprocessor.transform(student_df)
+    try:
+        processed = preprocessor.transform(student_df)
+    except Exception:
+        # Fallback manual transform if ColumnTransformer encounters version differences
+        field_encoder = getattr(preprocessor, "named_transformers_", {}).get("field", None)
+        if field_encoder is None and hasattr(preprocessor, "transformers_"):
+            field_encoder = preprocessor.transformers_[0][1]
+        field_ohe = field_encoder.transform(student_df[["field_filter"]])
+        if hasattr(field_ohe, "toarray"):
+            field_ohe = field_ohe.toarray()
+        num_vals = student_df[HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS].values
+        processed = np.hstack([field_ohe, num_vals])
+
+    if hasattr(processed, "toarray"):
+        processed = processed.toarray()
+
+    # Safety check: If preprocessor only returned the 12 categorical columns (remainder dropped)
+    if hasattr(processed, "shape") and processed.shape[1] == 12:
+        num_vals = student_df[HOBBY_COLUMNS + GRADE_COLUMNS + APTITUDE_COLUMNS].values
+        processed = np.hstack([processed, num_vals])
+
     raw_preds = model.predict(processed)
 
     if hasattr(raw_preds, "ndim") and raw_preds.ndim == 1:
@@ -158,3 +178,4 @@ def predict_top_courses(student_dict: dict, field_filter: str = None, career_fie
         })
 
     return recommendations
+
