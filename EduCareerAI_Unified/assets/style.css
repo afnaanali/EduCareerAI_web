@@ -1,0 +1,718 @@
+/* ============================================================
+   EduCareerAI — Modern SaaS Design System (High Contrast & Glassmorphic)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+    /* Color Palette */
+    --primary: #4F46E5;
+    --primary-gradient: linear-gradient(135deg, #6366F1 0%, #4F46E5 50%, #4338CA 100%);
+    --accent-gradient: linear-gradient(135deg, #06B6D4 0%, #3B82F6 50%, #8B5CF6 100%);
+    --warm-gradient: linear-gradient(135deg, #F59E0B 0%, #EF4444 100%);
+    --card-gradient: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%);
+    --glass-bg: #FFFFFF;
+    --glass-bg-hover: #FFFFFF;
+    --glass-border: #E2E8F0;
+    --glass-border-focus: rgba(99, 102, 241, 0.4);
+    
+    /* Text Colors - Explicit High Contrast */
+    --text-primary: #0F172A;
+    --text-secondary: #334155;
+    --text-muted: #64748B;
+    --text-accent: #4F46E5;
+
+    /* Status Colors */
+    --success: #10B981;
+    --success-bg: #ECFDF5;
+    --warning: #F59E0B;
+    --warning-bg: #FFFBEB;
+    --danger: #EF4444;
+    --danger-bg: #FEF2F2;
+    --info: #06B6D4;
+    --info-bg: #F0FDFA;
+
+    /* Shadows & Radii */
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-xl: 28px;
+    --shadow-soft: 0 2px 10px rgba(15, 23, 42, 0.04);
+    --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.06);
+    --shadow-hover: 0 12px 24px -4px rgba(99, 102, 241, 0.15), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
+}
+
+/* ============================================================
+   GLOBAL RESET & HIGH CONTRAST TEXT RULES
+   ============================================================ */
+html, body, [class*="css"], .stApp {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    color: #0F172A !important;
+    background: #F8FAFC !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em;
+    color: #0F172A !important;
+}
+
+p, span, label, div[data-testid="stMarkdownContainer"] p {
+    color: #0F172A !important;
+}
+
+/* Captions and secondary notes */
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p, small, .stCaption {
+    color: #64748B !important;
+    font-weight: 500;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+}
+
+/* ============================================================
+   HERO BANNER
+   ============================================================ */
+.hero-container {
+    background: radial-gradient(circle at 10% 20%, #1E1B4B 0%, #312E81 45%, #4338CA 85%, #4F46E5 100%) !important;
+    border-radius: var(--radius-lg);
+    padding: 36px 40px;
+    color: #FFFFFF !important;
+    margin-bottom: 28px;
+    box-shadow: 0 20px 35px -8px rgba(30, 27, 75, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-container * {
+    color: #FFFFFF !important;
+}
+
+.hero-title {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 34px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.03em;
+    margin: 0 0 10px 0 !important;
+    background: linear-gradient(135deg, #FFFFFF 0%, #E0E7FF 60%, #C7D2FE 100%);
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+.hero-subtitle {
+    font-size: 15px !important;
+    font-weight: 400 !important;
+    color: #C7D2FE !important;
+    margin: 0 0 18px 0 !important;
+    line-height: 1.6;
+    max-width: 800px;
+}
+
+.hero-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.hero-badge {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 9999px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #FFFFFF !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ============================================================
+   GLASSMORPHIC CARDS & KPI METRICS
+   ============================================================ */
+.glass-panel {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: var(--radius-md);
+    padding: 22px;
+    margin-bottom: 22px;
+    box-shadow: var(--shadow-card);
+    transition: all 0.25s ease;
+}
+
+.glass-panel:hover {
+    border-color: #CBD5E1;
+    box-shadow: var(--shadow-hover);
+}
+
+.metric-card {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: var(--radius-md);
+    padding: 20px;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--primary-gradient);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+    border-color: #C7D2FE;
+}
+
+.metric-card:hover::before {
+    opacity: 1;
+}
+
+.metric-label {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #64748B !important;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+}
+
+.metric-value {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 30px !important;
+    font-weight: 800 !important;
+    color: #0F172A !important;
+    line-height: 1.1;
+    margin-bottom: 4px;
+}
+
+.metric-subtext {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #4F46E5 !important;
+}
+
+/* Feature Launch Cards */
+.feature-launch-card {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: var(--radius-md);
+    padding: 20px;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.25s ease;
+    height: 100%;
+}
+
+.feature-launch-card:hover {
+    transform: translateY(-3px);
+    border-color: #A5B4FC;
+    box-shadow: var(--shadow-hover);
+}
+
+.feature-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #1E1B4B !important;
+    margin: 8px 0 4px 0;
+}
+
+.feature-desc {
+    font-size: 13px !important;
+    color: #475569 !important;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* ============================================================
+   STREAMLIT FORM WIDGETS & INPUT CONTROLS (CRITICAL VISIBILITY)
+   ============================================================ */
+
+/* 1. Widget Labels (Headers for Select, Input, Number, FileUploader) */
+[data-testid="stWidgetLabel"], 
+[data-testid="stWidgetLabel"] label, 
+[data-testid="stWidgetLabel"] p,
+label[data-testid="stWidgetLabel"] {
+    color: #0F172A !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px !important;
+}
+
+/* 2. Checkboxes & Checkbox Labels */
+[data-testid="stCheckbox"],
+[data-testid="stCheckbox"] label,
+[data-testid="stCheckbox"] label p,
+[data-testid="stCheckbox"] label span,
+.stCheckbox label,
+.stCheckbox span,
+.stCheckbox p {
+    color: #0F172A !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+}
+
+/* 3. Radio Buttons */
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] label p,
+[data-testid="stRadio"] label span,
+.stRadio label,
+.stRadio span,
+.stRadio p {
+    color: #0F172A !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+}
+
+/* 4. Text Inputs, Number Inputs, Text Areas */
+input, textarea, 
+[data-baseweb="input"] input, 
+[data-baseweb="textarea"] textarea {
+    background-color: #FFFFFF !important;
+    color: #0F172A !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 10px !important;
+}
+
+[data-baseweb="base-input"], 
+[data-baseweb="input"], 
+[data-baseweb="textarea"] {
+    background-color: #FFFFFF !important;
+    border-radius: 10px !important;
+}
+
+input:focus, textarea:focus,
+[data-baseweb="input"]:focus-within {
+    border-color: #4F46E5 !important;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15) !important;
+}
+
+/* 5. Selectbox / Dropdowns */
+[data-baseweb="select"] {
+    background-color: #FFFFFF !important;
+    border-radius: 10px !important;
+}
+
+[data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 10px !important;
+    color: #0F172A !important;
+}
+
+[data-baseweb="select"] span,
+[data-baseweb="select"] div {
+    color: #0F172A !important;
+    font-weight: 500 !important;
+}
+
+[data-baseweb="popover"], [data-baseweb="menu"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 10px !important;
+    box-shadow: var(--shadow-hover) !important;
+}
+
+[data-baseweb="menu"] * {
+    color: #0F172A !important;
+}
+
+/* 6. File Uploader Container */
+[data-testid="stFileUploader"] {
+    background-color: #FFFFFF !important;
+    border: 1.5px dashed #CBD5E1 !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+}
+
+[data-testid="stFileUploader"] section {
+    background-color: #FFFFFF !important;
+}
+
+[data-testid="stFileUploader"] * {
+    color: #0F172A !important;
+}
+
+[data-testid="stFileUploader"] small {
+    color: #64748B !important;
+}
+
+[data-testid="stFileUploader"] button {
+    background-color: #EEF2FF !important;
+    border: 1px solid #C7D2FE !important;
+    border-radius: 8px !important;
+    color: #4F46E5 !important;
+    font-weight: 600 !important;
+}
+
+[data-testid="stFileUploader"] button * {
+    color: #4F46E5 !important;
+}
+
+/* ============================================================
+   BUTTONS (HIGH CONTRAST & CLEAR VISIBILITY)
+   ============================================================ */
+
+/* Base button styling */
+.stButton > button {
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 8px 18px !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Primary Button (Gradient fill, bright white text) */
+.stButton > button[kind="primary"],
+button[data-testid="baseButton-primary"] {
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3) !important;
+}
+
+.stButton > button[kind="primary"] *,
+button[data-testid="baseButton-primary"] * {
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
+}
+
+.stButton > button[kind="primary"]:hover,
+button[data-testid="baseButton-primary"]:hover {
+    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.45) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Secondary / Regular Buttons (Crisp White Card, Dark Indigo Text) */
+.stButton > button:not([kind="primary"]),
+button[data-testid="baseButton-secondary"] {
+    background: #FFFFFF !important;
+    color: #1E293B !important;
+    border: 1.5px solid #CBD5E1 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.stButton > button:not([kind="primary"]) *,
+button[data-testid="baseButton-secondary"] * {
+    color: #1E293B !important;
+    font-weight: 600 !important;
+}
+
+.stButton > button:not([kind="primary"]):hover,
+button[data-testid="baseButton-secondary"]:hover {
+    background: #EEF2FF !important;
+    border-color: #6366F1 !important;
+    color: #4F46E5 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15) !important;
+}
+
+.stButton > button:not([kind="primary"]):hover *,
+button[data-testid="baseButton-secondary"]:hover * {
+    color: #4F46E5 !important;
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+[data-testid="stSidebar"] {
+    background-color: #FFFFFF !important;
+    border-right: 1px solid #E2E8F0 !important;
+}
+
+[data-testid="stSidebar"] * {
+    color: #0F172A;
+}
+
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+[data-testid="stSidebar"] small {
+    color: #64748B !important;
+}
+
+/* ============================================================
+   TABS & EXPANDERS
+   ============================================================ */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 6px;
+    background: #F1F5F9 !important;
+    padding: 5px;
+    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    padding: 8px 16px !important;
+    color: #64748B !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+.stTabs [data-baseweb="tab"] * {
+    color: #64748B !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: #FFFFFF !important;
+    color: #4F46E5 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+
+.stTabs [aria-selected="true"] * {
+    color: #4F46E5 !important;
+    font-weight: 700 !important;
+}
+
+/* Expanders */
+[data-testid="stExpander"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 12px !important;
+    overflow: hidden;
+}
+
+[data-testid="stExpander"] details summary {
+    background-color: #FFFFFF !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    color: #0F172A !important;
+}
+
+[data-testid="stExpander"] details summary * {
+    color: #0F172A !important;
+}
+
+/* ============================================================
+   RECOMMENDATION CARDS & RANK BADGES
+   ============================================================ */
+.rank-card-1 {
+    background: linear-gradient(145deg, #FFFBEB 0%, #FEF3C7 100%) !important;
+    border: 2px solid #F59E0B !important;
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 14px;
+    box-shadow: 0 6px 18px rgba(245, 158, 11, 0.15);
+}
+
+.rank-card-2 {
+    background: linear-gradient(145deg, #FFFFFF 0%, #F1F5F9 100%) !important;
+    border: 1.5px solid #94A3B8 !important;
+    border-radius: var(--radius-md);
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-soft);
+}
+
+.rank-card-3 {
+    background: linear-gradient(145deg, #FFF7ED 0%, #FFEDD5 100%) !important;
+    border: 1.5px solid #FB923C !important;
+    border-radius: var(--radius-md);
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-soft);
+}
+
+.rank-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.rank-title {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: #0F172A !important;
+}
+
+.confidence-pill {
+    background: #4F46E5 !important;
+    color: #FFFFFF !important;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em;
+}
+
+/* ============================================================
+   ROADMAP PHASE CARDS
+   ============================================================ */
+.phase-card {
+    background: #FFFFFF !important;
+    border-left: 5px solid #4F46E5 !important;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+    border-top: 1px solid #E2E8F0 !important;
+    border-right: 1px solid #E2E8F0 !important;
+    border-bottom: 1px solid #E2E8F0 !important;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.2s ease;
+}
+
+.phase-card:hover {
+    box-shadow: var(--shadow-card);
+    transform: translateX(3px);
+    border-left-color: #6366F1 !important;
+}
+
+.phase-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #1E1B4B !important;
+    margin-bottom: 6px;
+}
+
+.phase-topics {
+    font-size: 14px !important;
+    color: #475569 !important;
+    margin: 0 0 10px 0;
+    padding-left: 18px;
+    line-height: 1.6;
+}
+
+.phase-project {
+    background: #F0FDF4 !important;
+    border: 1px solid #BBF7D0 !important;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #166534 !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ============================================================
+   SKILL TAGS & BADGES
+   ============================================================ */
+.skill-tag {
+    display: inline-flex;
+    align-items: center;
+    background: #F1F5F9 !important;
+    color: #334155 !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 9999px;
+    padding: 5px 14px;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    margin: 3px 6px 3px 0;
+    transition: all 0.15s ease;
+}
+
+.skill-tag-matched {
+    background: #ECFDF5 !important;
+    color: #065F46 !important;
+    border-color: #A7F3D0 !important;
+}
+
+.skill-tag-missing {
+    background: #FEF2F2 !important;
+    color: #991B1B !important;
+    border-color: #FECACA !important;
+}
+
+/* Status Pill */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 9999px;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+}
+
+.pill-success {
+    background: #DEF7EC !important;
+    color: #03543F !important;
+}
+
+.pill-info {
+    background: #E1EFFE !important;
+    color: #1E429F !important;
+}
+
+/* User Account Badge */
+.user-badge {
+    background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%) !important;
+    border: 1px solid #C7D2FE !important;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--primary-gradient) !important;
+    color: #FFFFFF !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.history-card {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-soft);
+    transition: all 0.2s ease;
+}
+
+.history-card:hover {
+    box-shadow: var(--shadow-hover);
+    border-color: #CBD5E1 !important;
+}
+
+/* Code Snippets & Labels */
+code {
+    font-family: 'JetBrains Mono', monospace !important;
+    background: #F1F5F9 !important;
+    color: #4F46E5 !important;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.9em;
+}
