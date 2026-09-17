@@ -2,13 +2,15 @@ import os
 import sys
 from pathlib import Path
 
-# Prevent OpenMP / MKL thread deadlocks in Windows web worker processes
+# Prevent OpenMP / MKL thread deadlocks and keep memory minimal on Render 512MB tier
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["LOKY_MAX_CPU_COUNT"] = "1"
+os.environ["MALLOC_ARENA_MAX"] = "2"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32"
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
