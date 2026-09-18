@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any
 
 from core.interview_generator import (
     generate_interview_questions,
+    generate_answer_and_tips,
     SUPPORTED_ROLES,
 )
 
@@ -16,6 +17,16 @@ class InterviewGenerateRequest(BaseModel):
     difficulty: Optional[str] = "all"
     count: Optional[int] = 5
     focus_topics: Optional[str] = None
+
+
+class InterviewAnswerTipsRequest(BaseModel):
+    question: str
+    role: Optional[str] = "Data Scientist / ML Engineer"
+    category: Optional[str] = "behavioral"
+    difficulty: Optional[str] = "Mid-Level"
+    hint: Optional[str] = None
+    model_answer: Optional[str] = None
+    user_response: Optional[str] = None
 
 
 @router.get("/roles")
@@ -50,3 +61,26 @@ def generate_questions(payload: InterviewGenerateRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate interview questions: {str(e)}")
+
+
+@router.post("/answer-and-tips")
+def get_answer_and_tips(payload: InterviewAnswerTipsRequest):
+    """
+    Generates or retrieves the gold-standard recommended answer along with
+    strategic tips, essential keywords, and comparative feedback if the user
+    provided an answer.
+    """
+    try:
+        result = generate_answer_and_tips(
+            question=payload.question,
+            role=payload.role or "Data Scientist / ML Engineer",
+            category=payload.category or "behavioral",
+            difficulty=payload.difficulty or "Mid-Level",
+            hint=payload.hint,
+            model_answer=payload.model_answer,
+            user_response=payload.user_response,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate answer and tips: {str(e)}")
+

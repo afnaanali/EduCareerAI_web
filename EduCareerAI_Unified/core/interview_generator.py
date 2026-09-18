@@ -419,3 +419,172 @@ def generate_interview_questions(
         results.append(synthetic)
 
     return results[:count]
+
+
+# ============================================================
+# INTERVIEW ANSWER & TIPS GENERATOR
+# ============================================================
+
+def generate_answer_and_tips(
+    question: str,
+    role: str = "Data Scientist / ML Engineer",
+    category: str = "behavioral",
+    difficulty: str = "Mid-Level",
+    hint: Optional[str] = None,
+    model_answer: Optional[str] = None,
+    user_response: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Generates or formats a gold-standard recommended answer along with
+    strategic tips, STAR breakdown, pitfalls to avoid, keywords to mention,
+    and comparative feedback if a candidate response is provided.
+    """
+    clean_question = question.strip() if question else "Interview Question"
+    clean_role = role.strip() if role else "Software & Data Professional"
+    cat_lower = category.lower() if category else "behavioral"
+    diff = difficulty if difficulty else "Mid-Level"
+
+    # 1. Resolve Recommended Answer
+    final_model_answer = model_answer.strip() if model_answer else ""
+    final_hint = hint.strip() if hint else ""
+
+    if not final_model_answer:
+        # Search curated banks for matching question
+        for r_key, q_list in CURATED_ROLE_QUESTIONS.items():
+            for item in q_list:
+                if item["question"].lower() in clean_question.lower() or clean_question.lower() in item["question"].lower():
+                    final_model_answer = item.get("modelAnswer", "")
+                    if not final_hint:
+                        final_hint = item.get("hint", "")
+                    break
+            if final_model_answer:
+                break
+
+    # If still not found, synthesize a high-impact structured answer
+    if not final_model_answer:
+        if "technical" in cat_lower or "design" in clean_question.lower() or "how do you" in clean_question.lower():
+            final_model_answer = (
+                f"To address this in a production {clean_role} environment, I follow a 4-step architectural approach: "
+                f"1) Requirements & Trade-offs: I clarify latency, scalability, and consistency constraints. "
+                f"2) Core Implementation: I leverage industry-standard frameworks and decouple state from compute. "
+                f"3) Resilience & Observability: I introduce circuit breakers, distributed tracing, and automated telemetry. "
+                f"4) Verification: I validate performance under stress testing and establish automated regression guards."
+            )
+        else:
+            final_model_answer = (
+                f"In my previous project as a {clean_role}, our team encountered a critical challenge regarding this exact scenario. "
+                f"Situation & Task: We faced tight delivery timelines with ambiguous requirements affecting our core workflow. "
+                f"Action: I took ownership by conducting root-cause telemetry analysis, orchestrating stakeholder alignment, and engineering an automated pipeline fix. "
+                f"Result: This mitigated the issue within 48 hours, boosted operational efficiency by 28%, and established automated regression tests for future deployments."
+            )
+
+    if not final_hint:
+        final_hint = "Use STAR: Detail the Situation, Task, Action you specifically executed, and quantifiable business Result."
+
+    # 2. Build Category-Tailored Strategic Tips
+    key_tips = []
+    if "technical" in cat_lower:
+        key_tips = [
+            "Structure your answer from High-Level Architecture down to Low-Level Implementation details.",
+            "Always state the Trade-offs (e.g. Memory vs CPU, Latency vs Throughput, Consistency vs Availability).",
+            "Mention concrete technologies, libraries, and observability tools relevant to " + clean_role + ".",
+            "Conclude by mentioning automated testing, edge-case handling, and monitoring."
+        ]
+        framework = "Technical Architecture & Trade-off Analysis"
+    elif "leadership" in cat_lower:
+        key_tips = [
+            "Highlight proactive communication and alignment across non-technical and executive stakeholders.",
+            "Focus on active listening, empathy, and framing solutions around business KPIs.",
+            "Demonstrate how you empower team members and resolve conflicting priorities constructively.",
+            "State the lasting organizational process or cultural improvement that resulted."
+        ]
+        framework = "Leadership & Stakeholder Alignment Framework"
+    elif "situational" in cat_lower:
+        key_tips = [
+            "Clarify immediate triage vs long-term preventative fixes.",
+            "Show systematic root-cause isolation rather than guessing or reactive patching.",
+            "Explain communication protocols during incidents (SLAs, status updates, post-mortems).",
+            "Quantify the risk avoided and post-incident safeguards implemented."
+        ]
+        framework = "Incident Triage & Systematic Problem Solving"
+    else: # behavioral / STAR
+        key_tips = [
+            "Use the STAR Method: 15% Situation, 15% Task, 50% Action, and 20% Result.",
+            "Focus on 'I' (your individual contribution and technical decisions) rather than just 'we'.",
+            "Include quantifiable metrics in your Result (e.g., '% improvement', '$ revenue saved', 'latency reduced by X ms').",
+            "Highlight reflection: what you learned and how it influenced subsequent projects."
+        ]
+        framework = "STAR Method (Situation, Task, Action, Result)"
+
+    # 3. Common Pitfalls to Avoid
+    common_pitfalls = [
+        "Speaking in vague generalities without anchoring your response in a concrete, real-world project.",
+        "Over-indexing on team efforts ('we did...') without clarifying your personal architectural and coding contributions.",
+        "Failing to quantify the business outcome or metric improvements in the conclusion."
+    ]
+
+    # 4. Extract Recommended Keywords
+    keywords = []
+    for word in ["STAR Method", "Root Cause Analysis", "Scalability", "Optimization", "Latency", "Throughput", "Data Pipeline", "A/B Testing", "CI/CD", "Post-Mortem", "Stakeholder Alignment", "KPIs", "Architecture"]:
+        if word.lower() in final_model_answer.lower() or word.lower() in clean_question.lower():
+            keywords.append(word)
+    if not keywords:
+        keywords = ["STAR Framework", "Metrics & KPIs", "Problem Solving", "Collaboration", "Technical Rigor"]
+
+    # 5. Comparative Evaluation if User Answer is Provided
+    comparative_feedback = []
+    strengths = []
+    improvement_areas = []
+
+    if user_response and user_response.strip():
+        u_lower = user_response.lower()
+        words = u_lower.split()
+        w_count = len(words)
+
+        has_metrics = any(c in user_response for c in ["%", "$"]) or any(w.isdigit() for w in words)
+        has_situation = any(w in u_lower for w in ["when", "during", "project", "scenario", "context", "faced", "company", "team"])
+        has_action = any(w in u_lower for w in ["implemented", "built", "engineered", "designed", "created", "analyzed", "developed", "led", "optimized"])
+        has_result = any(w in u_lower for w in ["result", "achieved", "improved", "reduced", "increased", "%", "saved", "delivered"])
+
+        if w_count >= 50:
+            strengths.append(f"Good response length ({w_count} words) with thorough explanatory context.")
+        else:
+            improvement_areas.append(f"Answer is relatively brief ({w_count} words). Aim for 80–150 words to demonstrate depth.")
+
+        if has_metrics:
+            strengths.append("Great job incorporating quantifiable metrics and measurable outcomes.")
+        else:
+            improvement_areas.append("Missing quantifiable metrics (e.g., % performance increase, latency reduction, or dollar value saved).")
+
+        if has_action:
+            strengths.append("Strong technical action verbs demonstrating direct ownership.")
+        else:
+            improvement_areas.append("Highlight more concrete technical actions you executed (e.g. 'engineered', 'optimized', 'diagnosed').")
+
+        if has_result:
+            strengths.append("Clear conclusion stating the outcome and resolution.")
+        else:
+            improvement_areas.append("Conclude with an explicit Result section summarizing business impact and team takeaway.")
+
+        comparative_feedback = [
+            f"Comparison with AI Gold Standard: The recommended answer provides a tight STAR structure with specific metrics and technical depth.",
+            *strengths,
+            *([f"Targeted Improvement: {tip}" for tip in improvement_areas] if improvement_areas else ["Excellent alignment with gold-standard interview criteria."])
+        ]
+
+    return {
+        "success": True,
+        "question": clean_question,
+        "role": clean_role,
+        "category": cat_lower,
+        "difficulty": diff,
+        "framework": framework,
+        "hint": final_hint,
+        "recommended_answer": final_model_answer,
+        "key_tips": key_tips,
+        "common_pitfalls": common_pitfalls,
+        "essential_keywords": keywords,
+        "comparative_feedback": comparative_feedback,
+        "strengths": strengths,
+        "improvement_areas": improvement_areas,
+    }

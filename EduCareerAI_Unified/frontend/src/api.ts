@@ -9,6 +9,8 @@ import type {
   SentimentResult,
   InterviewGenerateRequest,
   InterviewGenerateResponse,
+  InterviewAnswerTipsRequest,
+  InterviewAnswerTipsResponse,
 } from './types';
 
 const API_BASE =
@@ -214,6 +216,13 @@ export const api = {
     payload: InterviewGenerateRequest
   ): Promise<InterviewGenerateResponse> => {
     const res = await client.post('/api/interview/generate', payload);
+    return res.data;
+  },
+
+  getInterviewAnswerAndTips: async (
+    payload: InterviewAnswerTipsRequest
+  ): Promise<InterviewAnswerTipsResponse> => {
+    const res = await client.post('/api/interview/answer-and-tips', payload);
     return res.data;
   },
 };

@@ -144,3 +144,31 @@ export type InterviewGenerateResponse = {
   count: number;
   questions: InterviewQuestionItem[];
 };
+
+export type InterviewAnswerTipsRequest = {
+  question: string;
+  role?: string;
+  category?: string;
+  difficulty?: string;
+  hint?: string;
+  model_answer?: string;
+  user_response?: string;
+};
+
+export type InterviewAnswerTipsResponse = {
+  success: boolean;
+  question: string;
+  role: string;
+  category: string;
+  difficulty: string;
+  framework: string;
+  hint: string;
+  recommended_answer: string;
+  key_tips: string[];
+  common_pitfalls: string[];
+  essential_keywords: string[];
+  comparative_feedback?: string[];
+  strengths?: string[];
+  improvement_areas?: string[];
+};
+

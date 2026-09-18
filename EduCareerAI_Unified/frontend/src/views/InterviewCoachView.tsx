@@ -13,9 +13,12 @@ import {
   BookOpen,
   Volume2,
   RefreshCw,
+  HelpCircle,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { api } from '../api';
-import type { SentimentResult, InterviewQuestionItem } from '../types';
+import type { SentimentResult, InterviewQuestionItem, InterviewAnswerTipsResponse } from '../types';
 
 const INITIAL_QUESTION_BANK: InterviewQuestionItem[] = [
   // ── DATA SCIENTIST & ML ENGINEER ──
@@ -130,6 +133,13 @@ export const InterviewCoachView: React.FC = () => {
   const [focusTopicsInput, setFocusTopicsInput] = useState<string>('');
   const [generatorSuccessMsg, setGeneratorSuccessMsg] = useState<string | null>(null);
 
+  // AI Answer & Strategy Tips Generator State
+  const [isGeneratingAnswerTips, setIsGeneratingAnswerTips] = useState<boolean>(false);
+  const [answerTipsResult, setAnswerTipsResult] = useState<InterviewAnswerTipsResponse | null>(null);
+  const [showAnswerTipsModal, setShowAnswerTipsModal] = useState<boolean>(false);
+  const [copiedToast, setCopiedToast] = useState<boolean>(false);
+  const [scorecardRecommendedAnswer, setScorecardRecommendedAnswer] = useState<InterviewAnswerTipsResponse | null>(null);
+
   // Practice Timer / Stopwatch
   const [timerSeconds, setTimerSeconds] = useState<number>(0);
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
@@ -230,6 +240,9 @@ export const InterviewCoachView: React.FC = () => {
         setCandidateResponse('');
         setAnalysisResult(null);
         setShowModelAnswer(false);
+        setShowAnswerTipsModal(false);
+        setAnswerTipsResult(null);
+        setScorecardRecommendedAnswer(null);
         setGeneratorSuccessMsg(`Successfully generated ${res.questions.length} AI interview questions for "${targetRole}"!`);
         setShowGeneratorPanel(false);
       }
@@ -252,6 +265,9 @@ export const InterviewCoachView: React.FC = () => {
     setCandidateResponse('');
     setAnalysisResult(null);
     setShowModelAnswer(false);
+    setShowAnswerTipsModal(false);
+    setAnswerTipsResult(null);
+    setScorecardRecommendedAnswer(null);
     setGeneratorSuccessMsg('Question bank reset to default curated templates.');
   };
 
@@ -279,6 +295,9 @@ export const InterviewCoachView: React.FC = () => {
     const nextIdx = (currentQuestionIndex + 1) % filteredQuestions.length;
     setCurrentQuestionIndex(nextIdx);
     setShowModelAnswer(false);
+    setShowAnswerTipsModal(false);
+    setAnswerTipsResult(null);
+    setScorecardRecommendedAnswer(null);
     setCandidateResponse('');
     setAnalysisResult(null);
     setTimerSeconds(0);
@@ -289,10 +308,59 @@ export const InterviewCoachView: React.FC = () => {
     const randomIdx = Math.floor(Math.random() * filteredQuestions.length);
     setCurrentQuestionIndex(randomIdx);
     setShowModelAnswer(false);
+    setShowAnswerTipsModal(false);
+    setAnswerTipsResult(null);
+    setScorecardRecommendedAnswer(null);
     setCandidateResponse('');
     setAnalysisResult(null);
     setTimerSeconds(0);
     setTimerRunning(false);
+  };
+
+  const handleGetAnswerAndTips = async () => {
+    if (!activeQuestion) return;
+    setIsGeneratingAnswerTips(true);
+    setShowAnswerTipsModal(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await api.getInterviewAnswerAndTips({
+        question: activeQuestion.question,
+        role: activeQuestion.role,
+        category: activeQuestion.category,
+        difficulty: activeQuestion.difficulty,
+        hint: activeQuestion.hint,
+        model_answer: activeQuestion.modelAnswer,
+        user_response: candidateResponse.trim() || undefined,
+      });
+      setAnswerTipsResult(res);
+    } catch (err: any) {
+      console.warn('Failed to get answer and tips from backend, applying fallback', err);
+      setAnswerTipsResult({
+        success: true,
+        question: activeQuestion.question,
+        role: activeQuestion.role,
+        category: activeQuestion.category,
+        difficulty: activeQuestion.difficulty || 'Mid-Level',
+        framework: activeQuestion.category === 'technical' ? 'Technical Architecture & Trade-off Analysis' : 'STAR Method Framework',
+        hint: activeQuestion.hint,
+        recommended_answer: activeQuestion.modelAnswer || 'Structure your answer using Situation, Task, Action, and quantifiable Result.',
+        key_tips: [
+          'Break down your response systematically: 15% Situation, 15% Task, 50% Action, and 20% Result.',
+          'Emphasize your individual technical ownership and engineering choices.',
+          'Quantify your business impact with measurable numbers, throughput improvements, or cost savings.',
+          'Mention automated tests, regression guards, or post-incident safeguards.'
+        ],
+        common_pitfalls: [
+          'Speaking in broad generalities without anchoring your answer in a specific real-world project.',
+          'Focusing only on what the collective team did without detailing your exact personal contribution.',
+          'Forgetting to state the quantifiable business result or takeaway.'
+        ],
+        essential_keywords: activeQuestion.skills || ['STAR Framework', 'Problem Solving', 'Root Cause Analysis', 'Engineering Rigor'],
+      });
+    } finally {
+      setIsGeneratingAnswerTips(false);
+    }
   };
 
   const handleAnalyze = async () => {
@@ -302,8 +370,42 @@ export const InterviewCoachView: React.FC = () => {
     setTimerRunning(false);
 
     try {
+      // 1. Perform Neural Sentiment & STAR Tone Analysis
       const res = await api.analyzeSentimentTone(candidateResponse);
       setAnalysisResult(res);
+
+      // 2. Concurrently generate AI Recommended Answer & Comparative Feedback for this question
+      try {
+        const rec = await api.getInterviewAnswerAndTips({
+          question: activeQuestion.question,
+          role: activeQuestion.role,
+          category: activeQuestion.category,
+          difficulty: activeQuestion.difficulty,
+          hint: activeQuestion.hint,
+          model_answer: activeQuestion.modelAnswer,
+          user_response: candidateResponse.trim(),
+        });
+        setScorecardRecommendedAnswer(rec);
+      } catch (recErr) {
+        console.warn('Could not fetch recommended answer comparison', recErr);
+        if (activeQuestion.modelAnswer) {
+          setScorecardRecommendedAnswer({
+            success: true,
+            question: activeQuestion.question,
+            role: activeQuestion.role,
+            category: activeQuestion.category,
+            difficulty: activeQuestion.difficulty || 'Mid-Level',
+            framework: 'STAR Method Framework',
+            hint: activeQuestion.hint,
+            recommended_answer: activeQuestion.modelAnswer,
+            key_tips: ['Include explicit metrics and STAR sequence.'],
+            common_pitfalls: ['Vague generalities.'],
+            essential_keywords: activeQuestion.skills || ['STAR Framework'],
+            strengths: ['Captured the essence of the prompt.'],
+            improvement_areas: ['Ensure measurable business impact in the result.'],
+          });
+        }
+      }
     } catch (err: any) {
       console.error('Interview analysis error', err);
       setErrorMessage(err.response?.data?.detail || err.message || 'Failed to complete AI interview evaluation');
@@ -760,6 +862,222 @@ export const InterviewCoachView: React.FC = () => {
             </div>
           </div>
 
+          {/* ── DON'T KNOW THE ANSWER? AI HELPER BUTTON & EXPANDABLE GUIDE ── */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            padding: '10px 14px',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(236, 72, 153, 0.1))',
+            border: '1px solid rgba(236, 72, 153, 0.35)',
+            borderRadius: '8px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <HelpCircle size={16} color="#EC4899" />
+              <div>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#F1F5F9' }}>
+                  Unsure how to answer this question?
+                </span>
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Generate an AI recommended answer, STAR strategy tips & key phrases.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (showAnswerTipsModal && answerTipsResult) {
+                  setShowAnswerTipsModal(false);
+                } else {
+                  handleGetAnswerAndTips();
+                }
+              }}
+              disabled={isGeneratingAnswerTips}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '6px',
+                background: showAnswerTipsModal && answerTipsResult ? 'rgba(30, 41, 59, 0.8)' : 'linear-gradient(135deg, #EC4899, #8B5CF6)',
+                border: showAnswerTipsModal && answerTipsResult ? '1px solid var(--border-color)' : 'none',
+                color: '#FFF',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap',
+                boxShadow: showAnswerTipsModal && answerTipsResult ? 'none' : '0 2px 12px rgba(236, 72, 153, 0.35)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {isGeneratingAnswerTips ? (
+                <>
+                  <RotateCcw size={13} className="animate-spin" />
+                  <span>Synthesizing...</span>
+                </>
+              ) : showAnswerTipsModal && answerTipsResult ? (
+                <>
+                  <span>Hide AI Guide</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={13} />
+                  <span>💡 Get AI Answer & Tips</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Expandable AI Answer & Tips Coaching Panel */}
+          {showAnswerTipsModal && (
+            <div style={{
+              padding: '16px 18px',
+              background: 'linear-gradient(135deg, rgba(24, 24, 45, 0.95), rgba(15, 23, 42, 0.95))',
+              border: '1px solid rgba(236, 72, 153, 0.45)',
+              borderRadius: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4)',
+              animation: 'fadeIn 0.2s ease',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ padding: '5px', borderRadius: '6px', background: 'rgba(236, 72, 153, 0.2)', color: '#F472B6' }}>
+                    <Sparkles size={15} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 800, color: '#FFF' }}>
+                      AI Gold-Standard Answer & Strategy Tips
+                    </h4>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Framework: {answerTipsResult?.framework || 'STAR Method'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAnswerTipsModal(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '15px' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {isGeneratingAnswerTips ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', gap: '10px', color: 'var(--text-muted)' }}>
+                  <RotateCcw size={18} className="animate-spin" color="#EC4899" />
+                  <span style={{ fontSize: '12.5px' }}>Synthesizing expert model answer and coaching tips...</span>
+                </div>
+              ) : answerTipsResult && (
+                <>
+                  {/* Recommended Answer Section */}
+                  <div style={{
+                    padding: '12px 14px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    borderRadius: '8px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#34D399', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Award size={14} />
+                        <span>Recommended Gold-Standard Response:</span>
+                      </span>
+                      <button
+                        onClick={() => {
+                          setCandidateResponse(answerTipsResult.recommended_answer);
+                          setCopiedToast(true);
+                          setTimeout(() => setCopiedToast(false), 2000);
+                        }}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: 'rgba(16, 185, 129, 0.2)',
+                          border: '1px solid #10B981',
+                          color: '#34D399',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        {copiedToast ? <Check size={11} /> : <Copy size={11} />}
+                        <span>{copiedToast ? 'Inserted!' : 'Insert to Editor'}</span>
+                      </button>
+                    </div>
+                    <p style={{ fontSize: '12.5px', color: '#E2E8F0', lineHeight: 1.5, margin: 0 }}>
+                      {answerTipsResult.recommended_answer}
+                    </p>
+                  </div>
+
+                  {/* Strategy Tips Section */}
+                  {answerTipsResult.key_tips && answerTipsResult.key_tips.length > 0 && (
+                    <div style={{
+                      padding: '10px 12px',
+                      background: 'rgba(99, 102, 241, 0.08)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                      borderRadius: '8px',
+                    }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#818CF8', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Lightbulb size={13} />
+                        <span>Key Strategic Tips for This Question:</span>
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '11.5px', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        {answerTipsResult.key_tips.map((tip, idx) => (
+                          <li key={idx}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Keywords & Common Pitfalls Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+                    {/* Keywords */}
+                    {answerTipsResult.essential_keywords && answerTipsResult.essential_keywords.length > 0 && (
+                      <div style={{
+                        padding: '8px 10px',
+                        background: 'rgba(30, 41, 59, 0.5)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                      }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#38BDF8', marginBottom: '4px' }}>
+                          🔑 Keywords & Skills:
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {answerTipsResult.essential_keywords.map((kw, idx) => (
+                            <span key={idx} className="badge badge-primary" style={{ fontSize: '10px', padding: '1px 5px' }}>
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pitfalls */}
+                    {answerTipsResult.common_pitfalls && answerTipsResult.common_pitfalls.length > 0 && (
+                      <div style={{
+                        padding: '8px 10px',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: '6px',
+                      }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#FCA5A5', marginBottom: '4px' }}>
+                          ⚠️ Pitfalls to Avoid:
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '11px', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {answerTipsResult.common_pitfalls.map((pit, idx) => (
+                            <li key={idx}>{pit}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Practice Tools Toolbar: Timer & Dictation & Sample Toggle */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px', flexWrap: 'wrap', gap: '8px' }}>
             {/* Stopwatch */}
@@ -948,7 +1266,7 @@ export const InterviewCoachView: React.FC = () => {
             disabled={isAnalyzing || !candidateResponse.trim()}
           >
             <Sparkles size={18} />
-            <span>{isAnalyzing ? 'Evaluating STAR & Neural Gates...' : '🎙️ Evaluate Response & Generate Scorecard'}</span>
+            <span>{isAnalyzing ? 'Evaluating STAR & Generating Recommended Answer...' : '🎙️ Evaluate Response & Generate Scorecard'}</span>
           </button>
         </div>
 
@@ -1010,7 +1328,67 @@ export const InterviewCoachView: React.FC = () => {
                 </div>
               )}
 
-              {/* 2. STAR Framework Breakdown Matrix */}
+              {/* 2. AI RECOMMENDED ANSWER & COMPARATIVE ANALYSIS */}
+              {scorecardRecommendedAnswer && (
+                <div style={{
+                  padding: '16px 18px',
+                  background: 'linear-gradient(135deg, rgba(30, 27, 75, 0.7), rgba(15, 23, 42, 0.85))',
+                  border: '1px solid rgba(139, 92, 246, 0.4)',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  animation: 'fadeIn 0.25s ease',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#C084FC', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      <Sparkles size={15} color="#C084FC" />
+                      <span>AI Recommended Ideal Answer</span>
+                    </div>
+                    <span className="badge badge-primary" style={{ fontSize: '10px' }}>
+                      Gold Standard Model
+                    </span>
+                  </div>
+
+                  {/* The Recommended Answer Text */}
+                  <div style={{
+                    padding: '12px 14px',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#E2E8F0',
+                    lineHeight: 1.5,
+                  }}>
+                    {scorecardRecommendedAnswer.recommended_answer}
+                  </div>
+
+                  {/* Comparative Insights: Strengths & Improvement Tips */}
+                  {scorecardRecommendedAnswer.strengths && scorecardRecommendedAnswer.strengths.length > 0 && (
+                    <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontWeight: 700, color: '#34D399' }}>✓ What You Handled Well:</span>
+                      <ul style={{ margin: 0, paddingLeft: '18px', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {scorecardRecommendedAnswer.strengths.map((s, idx) => (
+                          <li key={idx}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {scorecardRecommendedAnswer.improvement_areas && scorecardRecommendedAnswer.improvement_areas.length > 0 && (
+                    <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontWeight: 700, color: '#F59E0B' }}>💡 Key Tips to Bridge the Gap:</span>
+                      <ul style={{ margin: 0, paddingLeft: '18px', color: '#CBD5E1', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {scorecardRecommendedAnswer.improvement_areas.map((tip, idx) => (
+                          <li key={idx}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 3. STAR Framework Breakdown Matrix */}
               {analysisResult.coach?.star_breakdown && (
                 <div style={{ padding: '14px 18px', background: 'rgba(15, 23, 42, 0.5)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#E2E8F0', marginBottom: '10px' }}>
@@ -1038,7 +1416,7 @@ export const InterviewCoachView: React.FC = () => {
                 </div>
               )}
 
-              {/* 3. Bidirectional LSTM vs RNN Side-by-Side */}
+              {/* 4. Bidirectional LSTM vs RNN Side-by-Side */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ padding: '14px', background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.35)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '11px', color: '#38BDF8', fontWeight: 700 }}>BIDIRECTIONAL LSTM TONE</div>
@@ -1061,7 +1439,7 @@ export const InterviewCoachView: React.FC = () => {
                 </div>
               </div>
 
-              {/* 4. Action Verbs & Weak Phrase Fixes */}
+              {/* 5. Action Verbs & Weak Phrase Fixes */}
               {analysisResult.coach && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {analysisResult.coach.found_action_verbs && analysisResult.coach.found_action_verbs.length > 0 && (
@@ -1088,7 +1466,7 @@ export const InterviewCoachView: React.FC = () => {
                 </div>
               )}
 
-              {/* 5. AI Enhanced Rephrased Version */}
+              {/* 6. AI Enhanced Rephrased Version */}
               {analysisResult.coach?.rephrased_preview && analysisResult.coach.found_weak_phrases && analysisResult.coach.found_weak_phrases.length > 0 && (
                 <div style={{ padding: '14px', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#818CF8', marginBottom: '4px' }}>
@@ -1100,7 +1478,7 @@ export const InterviewCoachView: React.FC = () => {
                 </div>
               )}
 
-              {/* 6. Coaching Recommendations */}
+              {/* 7. Coaching Recommendations */}
               {analysisResult.coach?.tone_feedback && analysisResult.coach.tone_feedback.length > 0 && (
                 <div style={{ padding: '14px', background: 'rgba(15, 23, 42, 0.5)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: '#38BDF8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
